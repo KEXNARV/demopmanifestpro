@@ -20,6 +20,7 @@ import {
   getConsolidatedDeliveries,
   formatConsolidatedForExport 
 } from '@/lib/consigneeProcessor';
+import { detectarUbicacion } from '@/lib/panamaGeography';
 
 export function parseExcelFile(file: File): Promise<{ headers: string[]; data: Record<string, unknown>[] }> {
   return new Promise((resolve, reject) => {
@@ -87,6 +88,14 @@ export function mapDataToManifest(
       });
     }
 
+    const address = String(row[mapping.address] || '');
+    const province = mapping.province ? String(row[mapping.province] || '') : undefined;
+    const city = mapping.city ? String(row[mapping.city] || '') : undefined;
+    
+    // Auto-detect geographic location from address if not provided
+    const geoInput = [province, city, address].filter(Boolean).join(' ');
+    const geoDetection = detectarUbicacion(geoInput);
+
     rows.push({
       id: `row-${index}`,
       trackingNumber,
@@ -94,10 +103,14 @@ export function mapDataToManifest(
       valueUSD,
       weight,
       recipient: String(row[mapping.recipient] || ''),
-      address: String(row[mapping.address] || ''),
-      province: mapping.province ? String(row[mapping.province] || '') : undefined,
-      city: mapping.city ? String(row[mapping.city] || '') : undefined,
+      address,
+      province: province || geoDetection.provincia || undefined,
+      city: city || geoDetection.ciudad || undefined,
       district: mapping.district ? String(row[mapping.district] || '') : undefined,
+      detectedProvince: geoDetection.provincia || undefined,
+      detectedCity: geoDetection.ciudad || undefined,
+      detectedRegion: geoDetection.region || undefined,
+      geoConfidence: geoDetection.confianza,
       phone: mapping.phone ? String(row[mapping.phone] || '') : undefined,
       identification: mapping.identification ? String(row[mapping.identification] || '') : undefined,
       originalRowIndex: index,

@@ -23,11 +23,16 @@ import {
   FileWarning,
   AlertOctagon,
   Info,
+  Globe,
+  Mountain,
+  Waves,
+  Building2,
 } from 'lucide-react';
 import { ProcessingConfig } from '@/types/manifest';
 import { ExtendedProcessingResult } from '@/lib/excelProcessor';
 import { ExportFile, generateExportFiles, downloadExportFile, downloadAllFilesAsZip, ExportConfig, MAWBExportInfo } from '@/lib/exportService';
 import { COMPANY_INFO, REGULATORY_INFO, CONTACT_EMERGENCY, PHARMA_REQUIREMENTS } from '@/lib/companyConfig';
+import { PROVINCIAS_PANAMA, ICONOS_REGION, COLORES_PROVINCIA, getRegiones } from '@/lib/panamaGeography';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -131,18 +136,88 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
     percentage: ((summary.byProductCategory[cat.id] || 0) / summary.totalRows * 100).toFixed(1),
   }));
 
-  // Province distribution data
+  // Province distribution data (using detected provinces)
   const provinceData = useMemo(() => {
-    const byProvince = new Map<string, number>();
+    const byProvince = new Map<string, { count: number; value: number; weight: number }>();
     allRows.forEach(row => {
-      const province = row.province || 'Sin Provincia';
-      byProvince.set(province, (byProvince.get(province) || 0) + 1);
+      const province = row.detectedProvince || row.province || 'Sin Provincia';
+      const current = byProvince.get(province) || { count: 0, value: 0, weight: 0 };
+      byProvince.set(province, {
+        count: current.count + 1,
+        value: current.value + row.valueUSD,
+        weight: current.weight + row.weight,
+      });
     });
     return Array.from(byProvince.entries())
-      .map(([name, value]) => ({ name, value, percentage: ((value / summary.totalRows) * 100).toFixed(1) }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 5);
+      .map(([name, data]) => ({
+        name,
+        value: data.count,
+        totalValue: data.value,
+        totalWeight: data.weight,
+        percentage: ((data.count / summary.totalRows) * 100).toFixed(1),
+        color: COLORES_PROVINCIA[name] || 'hsl(215, 16%, 47%)',
+      }))
+      .sort((a, b) => b.value - a.value);
   }, [allRows, summary.totalRows]);
+
+  // Region distribution data
+  const regionData = useMemo(() => {
+    const byRegion = new Map<string, { count: number; value: number; weight: number }>();
+    allRows.forEach(row => {
+      const region = row.detectedRegion || 'Sin Región';
+      const current = byRegion.get(region) || { count: 0, value: 0, weight: 0 };
+      byRegion.set(region, {
+        count: current.count + 1,
+        value: current.value + row.valueUSD,
+        weight: current.weight + row.weight,
+      });
+    });
+    return Array.from(byRegion.entries())
+      .map(([name, data]) => ({
+        name,
+        value: data.count,
+        totalValue: data.value,
+        totalWeight: data.weight,
+        percentage: ((data.count / summary.totalRows) * 100).toFixed(1),
+        icon: ICONOS_REGION[name] || '📍',
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [allRows, summary.totalRows]);
+
+  // City distribution data (top 10)
+  const cityData = useMemo(() => {
+    const byCity = new Map<string, { count: number; province: string; value: number }>();
+    allRows.forEach(row => {
+      const city = row.detectedCity || row.city || 'Sin Ciudad';
+      const province = row.detectedProvince || row.province || '';
+      const current = byCity.get(city) || { count: 0, province, value: 0 };
+      byCity.set(city, {
+        count: current.count + 1,
+        province: province || current.province,
+        value: current.value + row.valueUSD,
+      });
+    });
+    return Array.from(byCity.entries())
+      .map(([name, data]) => ({
+        name,
+        value: data.count,
+        province: data.province,
+        totalValue: data.value,
+        percentage: ((data.count / summary.totalRows) * 100).toFixed(1),
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 10);
+  }, [allRows, summary.totalRows]);
+
+  // Geographic detection stats
+  const geoStats = useMemo(() => {
+    const detected = allRows.filter(r => r.geoConfidence && r.geoConfidence > 0).length;
+    const highConfidence = allRows.filter(r => r.geoConfidence && r.geoConfidence >= 70).length;
+    const mediumConfidence = allRows.filter(r => r.geoConfidence && r.geoConfidence >= 40 && r.geoConfidence < 70).length;
+    const lowConfidence = allRows.filter(r => r.geoConfidence && r.geoConfidence > 0 && r.geoConfidence < 40).length;
+    const notDetected = allRows.length - detected;
+    return { detected, highConfidence, mediumConfidence, lowConfidence, notDetected };
+  }, [allRows]);
 
   // Weight distribution
   const weightDistribution = useMemo(() => {
@@ -249,8 +324,16 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Resumen</TabsTrigger>
+          <TabsTrigger value="geographic" className="gap-1">
+            📍 Geográfico
+            {provinceData.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5 bg-emerald-100 text-emerald-700">
+                {provinceData.filter(p => p.name !== 'Sin Provincia').length}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="regulatory" className="gap-1">
             🇵🇦 Regulatorio
             {(pharmaStats.medication + highValueCount) > 0 && (
@@ -337,12 +420,16 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
             <div className="card-elevated p-6">
               <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
                 <MapPin className="w-4 h-4" />
-                Distribución Geográfica
+                Distribución Geográfica (Top 5)
               </h3>
               <div className="space-y-3">
-                {provinceData.map((province, i) => (
+                {provinceData.slice(0, 5).map((province, i) => (
                   <div key={province.name} className="flex items-center gap-3">
                     <span className="text-sm text-muted-foreground w-6">{i + 1}.</span>
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: province.color }}
+                    />
                     <div className="flex-1">
                       <div className="flex justify-between items-center mb-1">
                         <span className="font-medium text-sm">{province.name}</span>
@@ -352,8 +439,11 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
                       </div>
                       <div className="h-2 bg-muted rounded-full overflow-hidden">
                         <div
-                          className="h-full bg-primary rounded-full transition-all"
-                          style={{ width: `${province.percentage}%` }}
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${province.percentage}%`,
+                            backgroundColor: province.color,
+                          }}
                         />
                       </div>
                     </div>
@@ -420,6 +510,188 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
                 </div>
               </div>
             )}
+          </div>
+        </TabsContent>
+
+        {/* Geographic Tab */}
+        <TabsContent value="geographic" className="space-y-6">
+          {/* Geographic Header */}
+          <div className="card-elevated p-4 bg-gradient-to-r from-emerald-50 to-teal-50 border-emerald-200">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-lg bg-emerald-600 flex items-center justify-center text-white text-xl">
+                  🗺️
+                </div>
+                <div>
+                  <h3 className="font-semibold text-emerald-900">Distribución Geográfica - Panamá</h3>
+                  <p className="text-sm text-emerald-700">10 provincias • {regionData.filter(r => r.name !== 'Sin Región').length} regiones detectadas</p>
+                </div>
+              </div>
+              <Badge variant="outline" className="bg-white border-emerald-300 text-emerald-700">
+                {geoStats.detected} detectadas ({((geoStats.detected / allRows.length) * 100).toFixed(0)}%)
+              </Badge>
+            </div>
+          </div>
+
+          {/* Detection Stats */}
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="p-4 bg-green-50 rounded-lg border border-green-200 text-center">
+              <p className="text-2xl font-bold text-green-700">{geoStats.highConfidence}</p>
+              <p className="text-xs text-green-600">Alta Confianza (≥70%)</p>
+            </div>
+            <div className="p-4 bg-yellow-50 rounded-lg border border-yellow-200 text-center">
+              <p className="text-2xl font-bold text-yellow-700">{geoStats.mediumConfidence}</p>
+              <p className="text-xs text-yellow-600">Media (40-69%)</p>
+            </div>
+            <div className="p-4 bg-orange-50 rounded-lg border border-orange-200 text-center">
+              <p className="text-2xl font-bold text-orange-700">{geoStats.lowConfidence}</p>
+              <p className="text-xs text-orange-600">Baja (&lt;40%)</p>
+            </div>
+            <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 text-center">
+              <p className="text-2xl font-bold text-gray-700">{geoStats.notDetected}</p>
+              <p className="text-xs text-gray-600">No Detectado</p>
+            </div>
+            <div className="p-4 bg-emerald-50 rounded-lg border border-emerald-200 text-center">
+              <p className="text-2xl font-bold text-emerald-700">{provinceData.filter(p => p.name !== 'Sin Provincia').length}</p>
+              <p className="text-xs text-emerald-600">Provincias</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Province Distribution */}
+            <div className="card-elevated p-6">
+              <h4 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                <Building2 className="w-4 h-4" />
+                Distribución por Provincia
+              </h4>
+              <div className="space-y-3 max-h-[400px] overflow-y-auto">
+                {provinceData.map((province, i) => (
+                  <div key={province.name} className="flex items-center gap-3">
+                    <span className="text-sm text-muted-foreground w-6">{i + 1}.</span>
+                    <div
+                      className="w-3 h-3 rounded-full"
+                      style={{ backgroundColor: province.color }}
+                    />
+                    <div className="flex-1">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-medium text-sm">{province.name}</span>
+                        <span className="text-sm text-muted-foreground">
+                          {province.value.toLocaleString()} ({province.percentage}%)
+                        </span>
+                      </div>
+                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{
+                            width: `${province.percentage}%`,
+                            backgroundColor: province.color,
+                          }}
+                        />
+                      </div>
+                      <div className="flex justify-between mt-1 text-xs text-muted-foreground">
+                        <span>${province.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                        <span>{province.totalWeight.toLocaleString()} lb</span>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Region Distribution */}
+            <div className="card-elevated p-6">
+              <h4 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                <Globe className="w-4 h-4" />
+                Distribución por Región
+              </h4>
+              <div className="h-[250px] mb-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={regionData.filter(r => r.name !== 'Sin Región')}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={50}
+                      outerRadius={90}
+                      paddingAngle={3}
+                      dataKey="value"
+                      label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                    >
+                      {regionData.filter(r => r.name !== 'Sin Región').map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={`hsl(${index * 45}, 70%, 50%)`} />
+                      ))}
+                    </Pie>
+                    <Tooltip formatter={(value: number) => [value.toLocaleString(), 'Paquetes']} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {regionData.filter(r => r.name !== 'Sin Región').map((region, i) => (
+                  <div key={region.name} className="flex items-center gap-2 p-2 bg-muted/30 rounded text-sm">
+                    <span>{region.icon}</span>
+                    <span className="flex-1 truncate">{region.name}</span>
+                    <span className="font-medium">{region.value}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Top 10 Cities */}
+            <div className="card-elevated p-6">
+              <h4 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                🏆 Top 10 Destinos
+              </h4>
+              <div className="space-y-2">
+                {cityData.map((city, i) => (
+                  <div key={city.name} className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                    <div className="flex items-center gap-2">
+                      <span className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
+                        {i + 1}
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium">{city.name}</p>
+                        <p className="text-xs text-muted-foreground">{city.province}</p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-medium">{city.value.toLocaleString()} paq</p>
+                      <p className="text-xs text-muted-foreground">${city.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Province Table */}
+            <div className="card-elevated p-6">
+              <h4 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                📊 Estadísticas por Provincia
+              </h4>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2 px-2">Provincia</th>
+                      <th className="text-right py-2 px-2">Guías</th>
+                      <th className="text-right py-2 px-2">%</th>
+                      <th className="text-right py-2 px-2">Valor</th>
+                      <th className="text-right py-2 px-2">Peso</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {provinceData.slice(0, 10).map((province) => (
+                      <tr key={province.name} className="border-b hover:bg-muted/30">
+                        <td className="py-2 px-2 font-medium">{province.name}</td>
+                        <td className="text-right py-2 px-2">{province.value.toLocaleString()}</td>
+                        <td className="text-right py-2 px-2 text-muted-foreground">{province.percentage}%</td>
+                        <td className="text-right py-2 px-2">${province.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                        <td className="text-right py-2 px-2">{province.totalWeight.toLocaleString()} lb</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
           </div>
         </TabsContent>
 
