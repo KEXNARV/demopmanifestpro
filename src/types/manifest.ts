@@ -8,10 +8,15 @@ export interface ManifestRow {
   address: string;
   category?: string;
   originalRowIndex: number;
-  // Geographic fields
+  // Geographic fields (original from Excel)
   province?: string;
   city?: string;
   district?: string;
+  // Detected geographic fields (auto-detected)
+  detectedProvince?: string;
+  detectedCity?: string;
+  detectedRegion?: string;
+  geoConfidence?: number;
   // Consignee fields
   consigneeId?: string;
   normalizedRecipient?: string;
