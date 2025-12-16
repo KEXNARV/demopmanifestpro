@@ -1,18 +1,18 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback } from 'react';
 import { Header } from '@/components/manifest/Header';
 import { FileUpload } from '@/components/manifest/FileUpload';
 import { ColumnMapper } from '@/components/manifest/ColumnMapper';
 import { DataPreview } from '@/components/manifest/DataPreview';
 import { ProcessingProgress } from '@/components/manifest/ProcessingProgress';
-import { ResultsDashboard } from '@/components/manifest/ResultsDashboard';
+import { VisualDashboard } from '@/components/manifest/VisualDashboard';
 import { ConfigPanel } from '@/components/manifest/ConfigPanel';
 import { 
   parseExcelFile, 
   mapDataToManifest, 
-  processManifest 
+  processManifest,
+  ExtendedProcessingResult
 } from '@/lib/excelProcessor';
 import { loadConfig } from '@/lib/storage';
-import { ExtendedProcessingResult } from '@/lib/excelProcessor';
 import { 
   ManifestRow, 
   ProcessingConfig, 
@@ -202,13 +202,13 @@ export default function Index() {
             />
           )}
 
-          {step === 'results' && result && (
-            <ResultsDashboard 
-              result={result} 
-              config={config}
-              onReset={handleReset} 
-            />
-          )}
+        {step === 'results' && result && (
+          <VisualDashboard 
+            result={result} 
+            config={config}
+            onReset={handleReset}
+          />
+        )}
         </div>
 
         {/* Help Text */}
