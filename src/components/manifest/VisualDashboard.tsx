@@ -970,9 +970,9 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
                   ✈️
                 </div>
                 <div>
-                  <h3 className="font-bold text-lg text-foreground">{mawbInfo.formatted}</h3>
+                <h3 className="font-bold text-lg text-foreground">{mawbExportInfo.formatted}</h3>
                   <p className="text-sm text-muted-foreground">
-                    Aerolínea: {mawbInfo.airlineName} ({mawbInfo.airlineCode})
+                    Aerolínea: {mawbExportInfo.airlineName} ({mawbExportInfo.airlineCode})
                   </p>
                 </div>
               </div>
@@ -990,7 +990,7 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
               </div>
               <Button onClick={handleDownloadAll} className="gap-2">
                 <Download className="w-4 h-4" />
-                Descargar Todo ({mawbInfo.formatted.replace('MAWB ', '')}.zip)
+                Descargar Todo ({mawbExportInfo.formatted.replace('MAWB ', '')}.zip)
               </Button>
             </div>
 
