@@ -5,6 +5,13 @@ import { ManifestRow, ProcessingConfig, Consignee, ConsigneeStats } from '@/type
 import { ExtendedProcessingResult } from './excelProcessor';
 import { COMPANY_INFO, DEVELOPER_INFO, REGULATORY_INFO, getComplianceDeclaration, getCompanyFooter } from './companyConfig';
 
+export interface MAWBExportInfo {
+  mawb: string;
+  airlineCode: string;
+  airlineName: string;
+  formatted: string;
+}
+
 export interface ExportFile {
   id: string;
   name: string;
@@ -35,7 +42,7 @@ export interface ExportConfig {
 }
 
 const DEFAULT_EXPORT_CONFIG: ExportConfig = {
-  includeDate: true,
+  includeDate: false,
   generateByProvince: false,
   generateByCity: false,
   generateByWeight: false,
@@ -94,21 +101,38 @@ function calculateFileStats(rows: ManifestRow[], consigneeMap?: Map<string, Cons
   };
 }
 
+// Generate MAWB-based file name
+function generateMAWBFileName(mawbInfo: MAWBExportInfo, category: string, dateStr: string, includeDate: boolean): string {
+  const mawbClean = `${mawbInfo.airlineCode}-${mawbInfo.mawb.replace(/^.*-/, '')}`;
+  const datePart = includeDate ? `_${dateStr}` : '';
+  return `MAWB_${mawbClean}_${category}${datePart}`;
+}
+
 export function generateExportFiles(
   result: ExtendedProcessingResult,
   config: ProcessingConfig,
-  exportConfig: ExportConfig = DEFAULT_EXPORT_CONFIG
+  exportConfig: ExportConfig = DEFAULT_EXPORT_CONFIG,
+  mawbInfo?: MAWBExportInfo
 ): ExportFile[] {
   const allRows = result.batches.flatMap(b => b.rows);
-  const dateStr = exportConfig.includeDate ? `_${formatDate()}` : '';
+  const dateStr = formatDate();
   const files: ExportFile[] = [];
+  
+  // Helper to get file name
+  const getName = (category: string) => {
+    if (mawbInfo) {
+      return generateMAWBFileName(mawbInfo, category, dateStr, exportConfig.includeDate);
+    }
+    const datePart = exportConfig.includeDate ? `_${dateStr}` : '';
+    return `Lote1_${category}${datePart}`;
+  };
   
   // 1. Menor USD 100
   const lowValueRows = allRows.filter(r => r.valueUSD < 100);
   if (lowValueRows.length > 0) {
     files.push({
       id: 'low-value',
-      name: `Lote1_MenorUSD100${dateStr}`,
+      name: getName('Menor100'),
       category: 'Valor < $100',
       icon: 'dollar-sign',
       rows: lowValueRows,
@@ -123,7 +147,7 @@ export function generateExportFiles(
   if (highValueRows.length > 0) {
     files.push({
       id: 'high-value',
-      name: `Lote1_USD100oMas${dateStr}`,
+      name: getName('Mayor100'),
       category: 'Valor ≥ $100',
       icon: 'trending-up',
       rows: highValueRows,
@@ -138,7 +162,7 @@ export function generateExportFiles(
   if (medicationRows.length > 0) {
     files.push({
       id: 'farma-medication',
-      name: `Lote1_Farma_Medicamentos${dateStr}`,
+      name: getName('Medicamentos'),
       category: 'Medicamentos',
       icon: 'pill',
       rows: medicationRows,
@@ -153,7 +177,7 @@ export function generateExportFiles(
   if (supplementRows.length > 0) {
     files.push({
       id: 'farma-supplements',
-      name: `Lote1_Farma_Suplementos${dateStr}`,
+      name: getName('Suplementos'),
       category: 'Suplementos',
       icon: 'leaf',
       rows: supplementRows,
@@ -168,7 +192,7 @@ export function generateExportFiles(
   if (medicalRows.length > 0) {
     files.push({
       id: 'farma-medical',
-      name: `Lote1_Farma_ProductosMedicos${dateStr}`,
+      name: getName('ProductosMedicos'),
       category: 'Productos Médicos',
       icon: 'stethoscope',
       rows: medicalRows,
@@ -183,7 +207,7 @@ export function generateExportFiles(
   if (veterinaryRows.length > 0) {
     files.push({
       id: 'farma-veterinary',
-      name: `Lote1_Farma_Veterinarios${dateStr}`,
+      name: getName('Veterinarios'),
       category: 'Productos Veterinarios',
       icon: 'paw-print',
       rows: veterinaryRows,
@@ -203,7 +227,7 @@ export function generateExportFiles(
   if (consolidatedRows.length > 0) {
     files.push({
       id: 'consolidated',
-      name: `Lote1_Consolidados${dateStr}`,
+      name: getName('Consolidados'),
       category: 'Entregas Consolidadas',
       icon: 'users',
       rows: consolidatedRows,
@@ -218,7 +242,7 @@ export function generateExportFiles(
   if (generalRows.length > 0) {
     files.push({
       id: 'general',
-      name: `Lote1_General${dateStr}`,
+      name: getName('General'),
       category: 'General/Otros',
       icon: 'package',
       rows: generalRows,
@@ -234,7 +258,7 @@ export function generateExportFiles(
     if (heavyRows.length > 0) {
       files.push({
         id: 'heavy-weight',
-        name: `Lote1_PesoPesado${dateStr}`,
+        name: getName('Pesados'),
         category: 'Peso > 30 lb',
         icon: 'weight',
         rows: heavyRows,
@@ -250,7 +274,7 @@ export function generateExportFiles(
     if (veryHighValueRows.length > 0) {
       files.push({
         id: 'very-high-value',
-        name: `Lote1_AltoValor${dateStr}`,
+        name: getName('AltoValor'),
         category: 'Valor > $500',
         icon: 'shield',
         rows: veryHighValueRows,
@@ -273,7 +297,7 @@ export function generateExportFiles(
       const safeName = province.replace(/[^a-zA-Z0-9]/g, '');
       files.push({
         id: `province-${safeName}`,
-        name: `Lote1_Provincia_${safeName}${dateStr}`,
+        name: getName(`Provincia_${safeName}`),
         category: `Provincia: ${province}`,
         icon: 'map-pin',
         rows,
@@ -287,7 +311,12 @@ export function generateExportFiles(
   return files;
 }
 
-function createExcelWorkbook(file: ExportFile, consigneeMap?: Map<string, Consignee>, isFarma: boolean = false): XLSX.WorkBook {
+function createExcelWorkbook(
+  file: ExportFile, 
+  consigneeMap?: Map<string, Consignee>, 
+  isFarma: boolean = false,
+  mawbInfo?: MAWBExportInfo
+): XLSX.WorkBook {
   const workbook = XLSX.utils.book_new();
   const now = formatFullDateTime();
 
@@ -314,26 +343,39 @@ function createExcelWorkbook(file: ExportFile, consigneeMap?: Map<string, Consig
   XLSX.utils.book_append_sheet(workbook, mainSheet, 'Paquetes');
 
   // Sheet 2: Resumen Ejecutivo
-  const summaryData = [
-    ['RESUMEN DEL LOTE'],
+  const summaryData: (string | number)[][] = [
+    ['MANIFIESTO DE CARGA AÉREA'],
     [''],
     ['Empresa:', COMPANY_INFO.name],
     ['Ubicación:', COMPANY_INFO.location],
     [''],
+  ];
+
+  // Add MAWB info if available
+  if (mawbInfo) {
+    summaryData.push(['MAWB:', mawbInfo.formatted]);
+    summaryData.push(['Aerolínea:', `${mawbInfo.airlineName} (${mawbInfo.airlineCode})`]);
+    summaryData.push(['']);
+  }
+
+  summaryData.push(
     ['Archivo:', `${file.name}.xlsx`],
+    ['Categoría:', file.category],
     ['Fecha Generación:', now],
+    [''],
+    ['ESTADÍSTICAS DEL ARCHIVO'],
     ['Total de Guías:', file.stats.totalRows],
     ['Total Consignatarios:', file.stats.uniqueConsignees],
     ['Entregas Consolidadas:', file.stats.consolidatedCount],
     [''],
-    ['ESTADÍSTICAS'],
     ['Valor Total:', `$${file.stats.totalValue.toFixed(2)}`],
     ['Peso Total:', `${file.stats.totalWeight.toFixed(1)} lb`],
     ['Valor Promedio:', `$${(file.stats.totalValue / file.stats.totalRows || 0).toFixed(2)}`],
     ['Peso Promedio:', `${(file.stats.totalWeight / file.stats.totalRows || 0).toFixed(1)} lb`],
     [''],
-    ['DISTRIBUCIÓN POR PROVINCIA'],
-  ];
+    ['DISTRIBUCIÓN POR PROVINCIA']
+  );
+
   Object.entries(file.stats.byProvince).forEach(([province, count]) => {
     const pct = ((count / file.stats.totalRows) * 100).toFixed(1);
     summaryData.push([province, `${count} guías (${pct}%)`]);
@@ -359,9 +401,9 @@ function createExcelWorkbook(file: ExportFile, consigneeMap?: Map<string, Consig
     stats.value += row.valueUSD;
     stats.consignees.add(row.consigneeId || row.recipient);
   });
-  const cityData = [['Ciudad', 'Guías', 'Peso Total (lb)', 'Valor Total (USD)', 'Consignatarios']];
+  const cityData: (string | number)[][] = [['Ciudad', 'Guías', 'Peso Total (lb)', 'Valor Total (USD)', 'Consignatarios']];
   cityStats.forEach((stats, city) => {
-    cityData.push([city, stats.count.toString(), stats.weight.toFixed(1), `$${stats.value.toFixed(2)}`, stats.consignees.size.toString()]);
+    cityData.push([city, stats.count, stats.weight.toFixed(1), `$${stats.value.toFixed(2)}`, stats.consignees.size]);
   });
   const citySheet = XLSX.utils.aoa_to_sheet(cityData);
   XLSX.utils.book_append_sheet(workbook, citySheet, 'Estadísticas por Ciudad');
@@ -427,6 +469,7 @@ function createExcelWorkbook(file: ExportFile, consigneeMap?: Map<string, Consig
     ...getComplianceDeclaration().map(line => [line]),
     [''],
     [`Fecha de Generación: ${now}`],
+    ...(mawbInfo ? [[`MAWB: ${mawbInfo.formatted}`]] : []),
     [''],
     ...getCompanyFooter().map(line => [line]),
   ];
@@ -436,21 +479,22 @@ function createExcelWorkbook(file: ExportFile, consigneeMap?: Map<string, Consig
   return workbook;
 }
 
-export function exportFileToExcel(file: ExportFile, consigneeMap?: Map<string, Consignee>): Blob {
+export function exportFileToExcel(file: ExportFile, consigneeMap?: Map<string, Consignee>, mawbInfo?: MAWBExportInfo): Blob {
   const isFarma = file.id.includes('farma');
-  const workbook = createExcelWorkbook(file, consigneeMap, isFarma);
+  const workbook = createExcelWorkbook(file, consigneeMap, isFarma, mawbInfo);
   const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'array' });
   return new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
 }
 
-export function downloadExportFile(file: ExportFile, consigneeMap?: Map<string, Consignee>): void {
-  const blob = exportFileToExcel(file, consigneeMap);
+export function downloadExportFile(file: ExportFile, consigneeMap?: Map<string, Consignee>, mawbInfo?: MAWBExportInfo): void {
+  const blob = exportFileToExcel(file, consigneeMap, mawbInfo);
   saveAs(blob, `${file.name}.xlsx`);
 }
 
 export async function downloadAllFilesAsZip(
   files: ExportFile[],
-  result: ExtendedProcessingResult
+  result: ExtendedProcessingResult,
+  mawbInfo?: MAWBExportInfo
 ): Promise<void> {
   const zip = new JSZip();
   const dateStr = formatDate();
@@ -459,41 +503,58 @@ export async function downloadAllFilesAsZip(
   // Add Excel files
   files.forEach(file => {
     if (file.generated && file.rows.length > 0) {
-      const blob = exportFileToExcel(file, result.consigneeMap);
+      const blob = exportFileToExcel(file, result.consigneeMap, mawbInfo);
       zip.file(`${file.name}.xlsx`, blob);
     }
   });
 
-  // Generate README.txt with company branding
+  // Generate README.txt with MAWB branding
   const totalValue = files.reduce((sum, f) => sum + (f.generated ? f.stats.totalValue : 0), 0);
   const totalWeight = files.reduce((sum, f) => sum + (f.generated ? f.stats.totalWeight : 0), 0);
   
   let readme = `═══════════════════════════════════════════════════════════════\n`;
-  readme += `        MANIFIESTO DE CARGA AÉREA - LOTE 1\n`;
+  readme += `        MANIFIESTO DE CARGA AÉREA\n`;
+  if (mawbInfo) {
+    readme += `        ${mawbInfo.formatted}\n`;
+  }
   readme += `        ${COMPANY_INFO.name}\n`;
   readme += `═══════════════════════════════════════════════════════════════\n\n`;
+
+  if (mawbInfo) {
+    readme += `INFORMACIÓN DEL VUELO\n`;
+    readme += `─────────────────────────────────────────────────────\n`;
+    readme += `Master Air Waybill (MAWB): ${mawbInfo.formatted}\n`;
+    readme += `Aerolínea: ${mawbInfo.airlineName} (Código ${mawbInfo.airlineCode})\n`;
+    readme += `Aeropuerto de Destino: Tocumen International Airport (PTY)\n\n`;
+  }
+
   readme += `Fecha de Proceso: ${fullDateTime}\n`;
   readme += `Ubicación: ${COMPANY_INFO.location}\n`;
   readme += `Total de Guías Procesadas: ${result.summary.totalRows.toLocaleString()}\n\n`;
   
-  readme += `ARCHIVOS INCLUIDOS:\n`;
-  readme += `==================\n\n`;
+  readme += `ARCHIVOS INCLUIDOS EN ESTE PAQUETE\n`;
+  readme += `═══════════════════════════════════════════════════════\n\n`;
 
   files.filter(f => f.generated).forEach((file, idx) => {
     readme += `${idx + 1}. ${file.name}.xlsx\n`;
-    readme += `   - ${file.stats.totalRows.toLocaleString()} guías (${file.category})\n\n`;
+    readme += `   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`;
+    readme += `   Descripción: ${file.category}\n`;
+    readme += `   Cantidad: ${file.stats.totalRows.toLocaleString()} guías\n`;
+    readme += `   Valor: $${file.stats.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
+    readme += `   Peso: ${file.stats.totalWeight.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} lb\n\n`;
   });
 
-  readme += `\nESTADÍSTICAS GENERALES:\n`;
-  readme += `======================\n`;
+  readme += `\nESTADÍSTICAS GENERALES\n`;
+  readme += `═══════════════════════════════════════════════════════\n`;
   readme += `- Total Consignatarios: ${result.consigneeStats.totalConsignees.toLocaleString()}\n`;
   readme += `- Tasa de Consolidación: ${((result.consigneeStats.consolidatablePackages / result.summary.totalRows) * 100).toFixed(1)}%\n`;
   readme += `- Valor Total: $${totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}\n`;
   readme += `- Peso Total: ${totalWeight.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} lb\n\n`;
 
-  readme += `\nINFORMACIÓN REGULATORIA:\n`;
-  readme += `========================\n`;
-  readme += `Los archivos "Farma_*" contienen productos regulados que requieren:\n`;
+  readme += `\nINFORMACIÓN REGULATORIA\n`;
+  readme += `═══════════════════════════════════════════════════════\n`;
+  readme += `Los archivos "Medicamentos", "Suplementos", "ProductosMedicos" y\n`;
+  readme += `"Veterinarios" contienen productos regulados que requieren:\n`;
   readme += `- Permiso MINSA previo (medicamentos)\n`;
   readme += `- Notificación sanitaria (suplementos)\n`;
   readme += `- Registro sanitario (productos médicos)\n`;
@@ -501,8 +562,18 @@ export async function downloadAllFilesAsZip(
 
   readme += `\n${getCompanyFooter().join('\n')}\n`;
 
-  zip.file('README.txt', readme);
+  // Create README file name with MAWB
+  const readmeName = mawbInfo 
+    ? `README_${mawbInfo.airlineCode}-${mawbInfo.mawb.replace(/^.*-/, '')}.txt`
+    : 'README.txt';
+  zip.file(readmeName, readme);
 
   const content = await zip.generateAsync({ type: 'blob' });
-  saveAs(content, `${COMPANY_INFO.shortName.replace(/\s/g, '_')}_Manifiesto_Lote1_${dateStr}.zip`);
+  
+  // Create ZIP file name with MAWB
+  const zipName = mawbInfo
+    ? `MAWB_${mawbInfo.airlineCode}-${mawbInfo.mawb.replace(/^.*-/, '')}_Completo.zip`
+    : `${COMPANY_INFO.shortName.replace(/\s/g, '_')}_Manifiesto_${dateStr}.zip`;
+    
+  saveAs(content, zipName);
 }

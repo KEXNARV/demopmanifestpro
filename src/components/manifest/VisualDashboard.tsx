@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { ProcessingConfig } from '@/types/manifest';
 import { ExtendedProcessingResult } from '@/lib/excelProcessor';
-import { ExportFile, generateExportFiles, downloadExportFile, downloadAllFilesAsZip, ExportConfig } from '@/lib/exportService';
+import { ExportFile, generateExportFiles, downloadExportFile, downloadAllFilesAsZip, ExportConfig, MAWBExportInfo } from '@/lib/exportService';
 import { COMPANY_INFO, REGULATORY_INFO, CONTACT_EMERGENCY, PHARMA_REQUIREMENTS } from '@/lib/companyConfig';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -46,9 +46,19 @@ import {
   Legend,
 } from 'recharts';
 
+interface MAWBInfo {
+  mawb: string;
+  airlineCode: string;
+  airlineName: string;
+  sequenceNumber: string;
+  formatted: string;
+  isValid: boolean;
+}
+
 interface VisualDashboardProps {
   result: ExtendedProcessingResult;
   config: ProcessingConfig;
+  mawbInfo: MAWBInfo;
   onReset: () => void;
 }
 
@@ -70,12 +80,20 @@ const CATEGORY_CONFIG: Record<string, { icon: React.ComponentType<{ className?: 
   general: { icon: Package, color: 'text-gray-600', bgColor: 'bg-gray-50 border-gray-200' },
 };
 
-export function VisualDashboard({ result, config, onReset }: VisualDashboardProps) {
+export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDashboardProps) {
   const { summary, consigneeMap, consigneeStats, consolidatedDeliveries } = result;
   const allRows = result.batches.flatMap(b => b.rows);
 
+  // Convert MAWBInfo to MAWBExportInfo
+  const mawbExportInfo: MAWBExportInfo = {
+    mawb: mawbInfo.mawb,
+    airlineCode: mawbInfo.airlineCode,
+    airlineName: mawbInfo.airlineName,
+    formatted: mawbInfo.formatted,
+  };
+
   const [exportConfig, setExportConfig] = useState<ExportConfig>({
-    includeDate: true,
+    includeDate: false,
     generateByProvince: false,
     generateByCity: false,
     generateByWeight: false,
@@ -85,8 +103,8 @@ export function VisualDashboard({ result, config, onReset }: VisualDashboardProp
   const [showOptionalFiles, setShowOptionalFiles] = useState(false);
 
   const exportFiles = useMemo(() => 
-    generateExportFiles(result, config, exportConfig),
-    [result, config, exportConfig]
+    generateExportFiles(result, config, exportConfig, mawbExportInfo),
+    [result, config, exportConfig, mawbExportInfo]
   );
 
   const mainFiles = exportFiles.filter(f => !f.isOptional);
@@ -157,11 +175,11 @@ export function VisualDashboard({ result, config, onReset }: VisualDashboardProp
 
 
   const handleDownloadAll = async () => {
-    await downloadAllFilesAsZip(exportFiles, result);
+    await downloadAllFilesAsZip(exportFiles, result, mawbExportInfo);
   };
 
   const handleDownloadFile = (file: ExportFile) => {
-    downloadExportFile(file, consigneeMap);
+    downloadExportFile(file, consigneeMap, mawbExportInfo);
   };
 
   const getFileIcon = (iconName: string) => {
@@ -667,15 +685,35 @@ export function VisualDashboard({ result, config, onReset }: VisualDashboardProp
 
         {/* Files Tab */}
         <TabsContent value="files" className="space-y-6">
+          {/* MAWB Info Header */}
+          <div className="card-elevated p-4 bg-gradient-to-r from-primary/5 to-primary/10 border-primary/20">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center text-2xl">
+                  ✈️
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg text-foreground">{mawbInfo.formatted}</h3>
+                  <p className="text-sm text-muted-foreground">
+                    Aerolínea: {mawbInfo.airlineName} ({mawbInfo.airlineCode})
+                  </p>
+                </div>
+              </div>
+              <Badge variant="outline" className="text-primary border-primary/50">
+                {summary.totalRows.toLocaleString()} guías
+              </Badge>
+            </div>
+          </div>
+
           <div className="card-elevated">
             <div className="p-4 border-b border-border flex items-center justify-between">
               <div>
                 <h3 className="font-semibold text-foreground">Archivos Generados</h3>
-                <p className="text-sm text-muted-foreground">{mainFiles.length} archivos principales</p>
+                <p className="text-sm text-muted-foreground">{mainFiles.length} archivos con nomenclatura MAWB</p>
               </div>
               <Button onClick={handleDownloadAll} className="gap-2">
                 <Download className="w-4 h-4" />
-                Descargar Todo (ZIP)
+                Descargar Todo ({mawbInfo.formatted.replace('MAWB ', '')}.zip)
               </Button>
             </div>
 

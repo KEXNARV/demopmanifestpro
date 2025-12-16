@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Header } from '@/components/manifest/Header';
-import { FileUpload } from '@/components/manifest/FileUpload';
+import { FileUpload, MAWBInfo } from '@/components/manifest/FileUpload';
 import { ColumnMapper } from '@/components/manifest/ColumnMapper';
 import { DataPreview } from '@/components/manifest/DataPreview';
 import { ProcessingProgress } from '@/components/manifest/ProcessingProgress';
@@ -33,8 +33,14 @@ export default function Index() {
   const [result, setResult] = useState<ExtendedProcessingResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [mawbInfo, setMawbInfo] = useState<MAWBInfo | null>(null);
 
   const handleFileSelect = useCallback(async (file: File) => {
+    if (!mawbInfo?.isValid) {
+      toast.error('Por favor ingrese un número MAWB válido antes de cargar el archivo');
+      return;
+    }
+    
     setError(null);
     setIsLoading(true);
     
@@ -54,7 +60,7 @@ export default function Index() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [mawbInfo]);
 
   const handleMapping = useCallback((mapping: ColumnMapping) => {
     if (!rawData) return;
@@ -103,6 +109,7 @@ export default function Index() {
     setResult(null);
     setError(null);
     setProcessingProgress(0);
+    setMawbInfo(null);
   }, []);
 
   return (
@@ -144,6 +151,23 @@ export default function Index() {
           </div>
         </div>
 
+        {/* MAWB Display when not on upload step */}
+        {mawbInfo?.isValid && step !== 'upload' && (
+          <div className="mb-6 p-4 bg-primary/5 border border-primary/20 rounded-lg flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+                <span className="text-lg">✈️</span>
+              </div>
+              <div>
+                <p className="font-semibold text-foreground">{mawbInfo.formatted}</p>
+                <p className="text-sm text-muted-foreground">
+                  Aerolínea: {mawbInfo.airlineName} ({mawbInfo.airlineCode})
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Config Panel - Show on upload and preview steps */}
         {(step === 'upload' || step === 'preview') && (
           <div className="mb-6">
@@ -160,11 +184,13 @@ export default function Index() {
                   Cargar Manifiesto de Carga
                 </h2>
                 <p className="text-muted-foreground">
-                  Sube tu archivo Excel con los datos del manifiesto para comenzar el procesamiento
+                  Ingresa el número MAWB y sube tu archivo Excel para comenzar el procesamiento
                 </p>
               </div>
               <FileUpload 
-                onFileSelect={handleFileSelect} 
+                onFileSelect={handleFileSelect}
+                onMawbChange={setMawbInfo}
+                mawbInfo={mawbInfo}
                 isLoading={isLoading}
                 error={error}
               />
@@ -202,10 +228,11 @@ export default function Index() {
             />
           )}
 
-        {step === 'results' && result && (
+        {step === 'results' && result && mawbInfo && (
           <VisualDashboard 
             result={result} 
             config={config}
+            mawbInfo={mawbInfo}
             onReset={handleReset}
           />
         )}
@@ -219,18 +246,18 @@ export default function Index() {
                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
                   <span className="text-xl font-bold text-primary">1</span>
                 </div>
-                <h3 className="font-semibold text-foreground mb-1">Carga tu archivo</h3>
+                <h3 className="font-semibold text-foreground mb-1">Ingresa el MAWB</h3>
                 <p className="text-sm text-muted-foreground">
-                  Soportamos archivos Excel (.xlsx, .xls) con hasta 50,000 registros
+                  El número MAWB identifica tu manifiesto de carga aérea
                 </p>
               </div>
               <div className="p-4">
                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
                   <span className="text-xl font-bold text-primary">2</span>
                 </div>
-                <h3 className="font-semibold text-foreground mb-1">Procesamiento automático</h3>
+                <h3 className="font-semibold text-foreground mb-1">Carga tu archivo</h3>
                 <p className="text-sm text-muted-foreground">
-                  Clasificamos por valor, tipo de producto y generamos lotes de 5,000
+                  Soportamos archivos Excel (.xlsx, .xls) con hasta 50,000 registros
                 </p>
               </div>
               <div className="p-4">
@@ -239,7 +266,7 @@ export default function Index() {
                 </div>
                 <h3 className="font-semibold text-foreground mb-1">Descarga tus archivos</h3>
                 <p className="text-sm text-muted-foreground">
-                  Obtén archivos separados por categoría listos para despacho
+                  Obtén archivos separados por categoría con nomenclatura MAWB
                 </p>
               </div>
             </div>
