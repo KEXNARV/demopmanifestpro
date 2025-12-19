@@ -14,6 +14,8 @@ import {
   ConsigneeStats,
   ConsolidatedDelivery,
 } from '@/types/manifest';
+import { Liquidacion, ResumenLiquidacion } from '@/types/aduanas';
+import { procesarLiquidaciones, generarResumenLiquidacion } from '@/lib/aduanas/motorLiquidacion';
 import { 
   groupByConsignee, 
   calculateConsigneeStats, 
@@ -143,6 +145,9 @@ export interface ExtendedProcessingResult extends ProcessingResult {
   consigneeMap: Map<string, Consignee>;
   consigneeStats: ConsigneeStats;
   consolidatedDeliveries: ConsolidatedDelivery[];
+  // Liquidación aduanera
+  liquidaciones: Liquidacion[];
+  resumenLiquidacion: ResumenLiquidacion;
 }
 
 export function processManifest(
@@ -242,6 +247,14 @@ export function processManifest(
       (summary.byProductCategory[batch.productCategory] || 0) + batch.rows.length;
   });
 
+  // Calculate customs liquidations
+  if (onProgress) onProgress(90);
+  const manifiestoId = `manifest_${Date.now()}`;
+  const liquidaciones = procesarLiquidaciones(classifiedRows, manifiestoId, undefined, (p) => {
+    if (onProgress) onProgress(90 + (p * 0.1));
+  });
+  const resumenLiquidacion = generarResumenLiquidacion(liquidaciones);
+
   return { 
     batches, 
     summary, 
@@ -250,6 +263,8 @@ export function processManifest(
     consigneeMap,
     consigneeStats,
     consolidatedDeliveries,
+    liquidaciones,
+    resumenLiquidacion,
   };
 }
 

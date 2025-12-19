@@ -27,6 +27,7 @@ import {
   Mountain,
   Waves,
   Building2,
+  Calculator,
 } from 'lucide-react';
 import { ProcessingConfig } from '@/types/manifest';
 import { ExtendedProcessingResult } from '@/lib/excelProcessor';
@@ -38,6 +39,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ConsigneeDashboard } from './ConsigneeDashboard';
+import { LiquidacionDashboard } from './LiquidacionDashboard';
 import {
   PieChart,
   Pie,
@@ -86,7 +88,7 @@ const CATEGORY_CONFIG: Record<string, { icon: React.ComponentType<{ className?: 
 };
 
 export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDashboardProps) {
-  const { summary, consigneeMap, consigneeStats, consolidatedDeliveries } = result;
+  const { summary, consigneeMap, consigneeStats, consolidatedDeliveries, liquidaciones, resumenLiquidacion } = result;
   const allRows = result.batches.flatMap(b => b.rows);
 
   // Convert MAWBInfo to MAWBExportInfo (use default if no MAWB)
@@ -329,8 +331,17 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="overview">Resumen</TabsTrigger>
+          <TabsTrigger value="liquidacion" className="gap-1">
+            <Calculator className="w-4 h-4" />
+            Liquidación
+            {resumenLiquidacion.requierenRevision > 0 && (
+              <Badge variant="destructive" className="ml-1 h-5 px-1.5">
+                {resumenLiquidacion.requierenRevision}
+              </Badge>
+            )}
+          </TabsTrigger>
           <TabsTrigger value="geographic" className="gap-1">
             📍 Geográfico
             {provinceData.length > 0 && (
@@ -516,6 +527,14 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
               </div>
             )}
           </div>
+        </TabsContent>
+
+        {/* Liquidación Aduanera Tab */}
+        <TabsContent value="liquidacion" className="space-y-6">
+          <LiquidacionDashboard 
+            liquidaciones={liquidaciones}
+            resumen={resumenLiquidacion}
+          />
         </TabsContent>
 
         {/* Geographic Tab */}
