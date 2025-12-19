@@ -40,6 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ConsigneeDashboard } from './ConsigneeDashboard';
 import { LiquidacionDashboard } from './LiquidacionDashboard';
+import { generarReporteConsolidado } from '@/lib/aduanas/reporteConsolidado';
 import {
   PieChart,
   Pie,
@@ -534,6 +535,16 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
           <LiquidacionDashboard 
             liquidaciones={liquidaciones}
             resumen={resumenLiquidacion}
+            paquetes={allRows}
+            mawb={mawbExportInfo.mawb}
+            onExportarLiquidaciones={() => {
+              generarReporteConsolidado(
+                liquidaciones,
+                resumenLiquidacion,
+                allRows,
+                { mawb: mawbExportInfo.mawb, fechaProceso: new Date() }
+              );
+            }}
           />
         </TabsContent>
 

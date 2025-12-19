@@ -38,25 +38,43 @@ import {
   Search,
   ChevronRight,
   Info,
-  XCircle
+  XCircle,
+  PieChart as PieChartIcon,
+  BarChart3
 } from 'lucide-react';
 import { Liquidacion, ResumenLiquidacion, CategoriaAduanera } from '@/types/aduanas';
+import { ManifestRow } from '@/types/manifest';
 import { Input } from '@/components/ui/input';
+import {
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+  Legend,
+} from 'recharts';
 
 interface LiquidacionDashboardProps {
   liquidaciones: Liquidacion[];
   resumen: ResumenLiquidacion;
+  paquetes?: ManifestRow[];
+  mawb?: string;
   onExportarLiquidaciones?: () => void;
   onExportarResumen?: () => void;
 }
 
 // Colores por categoría
-const CATEGORIA_COLORS: Record<CategoriaAduanera, { bg: string; text: string; label: string }> = {
-  'A': { bg: 'bg-slate-100', text: 'text-slate-700', label: 'Documentos' },
-  'B': { bg: 'bg-green-100', text: 'text-green-700', label: 'De Minimis' },
-  'C': { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Bajo Valor' },
-  'D': { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Alto Valor' }
+const CATEGORIA_COLORS: Record<CategoriaAduanera, { bg: string; text: string; label: string; chartColor: string }> = {
+  'A': { bg: 'bg-slate-100', text: 'text-slate-700', label: 'Documentos', chartColor: '#64748b' },
+  'B': { bg: 'bg-green-100', text: 'text-green-700', label: 'De Minimis', chartColor: '#22c55e' },
+  'C': { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Bajo Valor', chartColor: '#3b82f6' },
+  'D': { bg: 'bg-amber-100', text: 'text-amber-700', label: 'Alto Valor', chartColor: '#f59e0b' }
 };
+
 
 // Colores por estado
 const ESTADO_BADGES: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
@@ -72,6 +90,8 @@ const ESTADO_BADGES: Record<string, { variant: 'default' | 'secondary' | 'destru
 export function LiquidacionDashboard({ 
   liquidaciones, 
   resumen,
+  paquetes,
+  mawb,
   onExportarLiquidaciones,
   onExportarResumen
 }: LiquidacionDashboardProps) {
@@ -101,6 +121,36 @@ export function LiquidacionDashboard({
         : 0
     }));
   }, [resumen]);
+  
+  // Datos para gráfico de pastel por categoría
+  const pieChartData = useMemo(() => {
+    return Object.entries(resumen.porCategoria)
+      .filter(([_, data]) => data.cantidad > 0)
+      .map(([cat, data]) => ({
+        name: `Cat. ${cat} - ${CATEGORIA_COLORS[cat as CategoriaAduanera].label}`,
+        value: data.cantidad,
+        color: CATEGORIA_COLORS[cat as CategoriaAduanera].chartColor,
+        monto: liquidaciones
+          .filter(l => l.categoriaAduanera === cat)
+          .reduce((sum, l) => sum + l.totalAPagar, 0)
+      }));
+  }, [resumen, liquidaciones]);
+  
+  // Datos para gráfico de barras de tributos
+  const tributosData = useMemo(() => {
+    const totalDAI = liquidaciones.reduce((s, l) => s + l.montoDAI, 0);
+    const totalISC = liquidaciones.reduce((s, l) => s + l.montoISC, 0);
+    const totalITBMS = liquidaciones.reduce((s, l) => s + l.montoITBMS, 0);
+    const totalTasas = liquidaciones.reduce((s, l) => s + l.tasaAduanera, 0);
+    
+    return [
+      { nombre: 'DAI', monto: totalDAI, fill: '#3b82f6' },
+      { nombre: 'ISC', monto: totalISC, fill: '#f59e0b' },
+      { nombre: 'ITBMS', monto: totalITBMS, fill: '#22c55e' },
+      { nombre: 'Tasas', monto: totalTasas, fill: '#8b5cf6' }
+    ];
+  }, [liquidaciones]);
+  
   
   return (
     <div className="space-y-6">
