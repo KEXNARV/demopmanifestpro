@@ -10,7 +10,7 @@
  * Usa detección automática de columnas.
  */
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Upload, FileSpreadsheet, X, AlertCircle, Plane, Check, Play, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Input } from '@/components/ui/input';
@@ -99,6 +99,19 @@ export function UploadManifiesto({ onComplete, onError }: UploadManifiestoProps)
     mensaje: '',
     fase: 'idle'
   });
+
+  // Limpieza automática de locks expirados
+  useEffect(() => {
+    // Limpiar al montar
+    GestorLocks.limpiarLocksExpirados();
+    
+    // Limpiar cada hora
+    const interval = setInterval(() => {
+      GestorLocks.limpiarLocksExpirados();
+    }, 60 * 60 * 1000);
+    
+    return () => clearInterval(interval);
+  }, []);
 
   // Handlers de archivo
   const handleDragOver = useCallback((e: React.DragEvent) => {
