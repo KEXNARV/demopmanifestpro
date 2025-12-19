@@ -7,6 +7,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import Historial from "./pages/Historial";
 import TestDeteccion from "./pages/TestDeteccion";
+import DashboardManifiesto from "./pages/DashboardManifiesto";
 import NotFound from "./pages/NotFound";
 import { ProtectorDatos } from "@/lib/seguridad/encriptacion";
 
@@ -45,6 +46,7 @@ const App = () => {
           <Route path="/" element={<Index />} />
           <Route path="/historial" element={<Historial />} />
           <Route path="/test-deteccion" element={<TestDeteccion />} />
+          <Route path="/dashboard/:manifiestoId" element={<DashboardManifiesto />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
