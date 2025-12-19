@@ -7,6 +7,57 @@ import { detectarColumnasAutomaticamente, validarMapeoColumnas } from '../detecc
 import { ClasificadorInteligente } from '../clasificacion/clasificadorInteligente';
 
 // ============================================
+// PROTECTOR DE DATOS PARA WORKER
+// (Versión simplificada - no tiene acceso a sessionStorage)
+// ============================================
+
+class ProtectorDatosWorker {
+  static encriptar(texto: string): string {
+    if (!texto) return '';
+    // Encriptación Base64 para el contexto del worker
+    return btoa(unescape(encodeURIComponent(texto)));
+  }
+
+  static desencriptar(textoEncriptado: string): string {
+    if (!textoEncriptado) return '';
+    try {
+      return decodeURIComponent(escape(atob(textoEncriptado)));
+    } catch {
+      return textoEncriptado;
+    }
+  }
+
+  static hashear(texto: string): string {
+    if (!texto) return '';
+    // Hash simple para búsquedas
+    let hash = 0;
+    for (let i = 0; i < texto.length; i++) {
+      const char = texto.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return Math.abs(hash).toString(16).padStart(8, '0');
+  }
+
+  static ofuscar(texto: string, tipo: 'cedula' | 'telefono' | 'email' | 'direccion'): string {
+    if (!texto) return '';
+    switch (tipo) {
+      case 'cedula':
+        return texto.length > 4 ? `***${texto.slice(-4)}` : '****';
+      case 'telefono':
+        return texto.length > 4 ? `***-${texto.slice(-4)}` : '****';
+      case 'email':
+        const [local, domain] = texto.split('@');
+        return local ? `${local[0]}***@${domain || '***'}` : '***@***';
+      case 'direccion':
+        return texto.length > 10 ? `${texto.slice(0, 10)}...` : texto;
+      default:
+        return '***';
+    }
+  }
+}
+
+// ============================================
 // INTERFACES Y TIPOS
 // ============================================
 
