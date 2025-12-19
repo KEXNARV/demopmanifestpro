@@ -248,6 +248,16 @@ async function procesarManifiesto(
 
     enviarProgreso('DETECCION', 100, `Detectadas ${Object.keys(resultadoDeteccion.mapping).length} columnas con ${confianzaPromedio.toFixed(1)}% confianza`);
 
+    // 🔍 LOGS DE DEBUGGING - DETECCIÓN DE COLUMNAS
+    console.log('═══════════════════════════════════════');
+    console.log('📋 DETECCIÓN DE COLUMNAS');
+    console.log('═══════════════════════════════════════');
+    console.log('Columnas disponibles:', headers);
+    console.log('Mapeo detectado:', resultadoDeteccion.mapping);
+    console.log('Confianza:', resultadoDeteccion.confianza);
+    console.log('Advertencias:', advertencias);
+    console.log('═══════════════════════════════════════');
+
     // Verificar cancelación
     if (cancelarProcesamiento) {
       throw new Error('Procesamiento cancelado por el usuario');
@@ -319,6 +329,15 @@ async function procesarManifiesto(
         if (clasificacion.advertencias && clasificacion.advertencias.length > 0) {
           fila.advertencias.push(...clasificacion.advertencias);
         }
+
+        // 🔍 LOG DE DEBUGGING - PAQUETE CLASIFICADO
+        console.log('📦 PAQUETE CLASIFICADO:', {
+          guia: fila.tracking,
+          descripcion: fila.descripcion.substring(0, 50),
+          categoriaProducto: fila.categoria,
+          categoriaAduanera: fila.categoriaAduanera,
+          confianza: fila.confianzaClasificacion
+        });
       }
 
       // Actualizar progreso cada 50 filas
