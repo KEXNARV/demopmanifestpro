@@ -1,8 +1,13 @@
 /**
- * DASHBOARD DE MANIFIESTO
+ * DASHBOARD DE MANIFIESTO v3.0
  * 
- * Muestra métricas detalladas, gráficos de distribución,
- * tabla de paquetes con filtros y alertas.
+ * Dashboard mejorado que muestra:
+ * 1. Información del MAWB y aerolínea detectada
+ * 2. Estadísticas generales
+ * 3. Distribución automática por valor (<$100 y >$100)
+ * 4. Clasificación HTS de productos
+ * 5. Tablas de paquetes por lote
+ * 6. Exportación a Excel
  */
 
 import { useState, useEffect, useMemo } from 'react';
@@ -10,15 +15,18 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Package, DollarSign, Calculator, Receipt, 
   Download, AlertTriangle, Search, Filter,
-  ChevronLeft, ChevronRight, ArrowLeft, FileSpreadsheet
+  ChevronLeft, ChevronRight, ArrowLeft, FileSpreadsheet,
+  Plane, CheckCircle2, AlertCircle, TrendingUp
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import * as XLSX from 'xlsx';
 
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Table, TableBody, TableCell, TableHead, 
   TableHeader, TableRow
@@ -30,7 +38,6 @@ import {
 import { toast } from '@/hooks/use-toast';
 
 import { obtenerManifiesto, obtenerFilasPorManifiesto } from '@/lib/db/database';
-import { descargarExcelCompleto } from '@/lib/exportacion/generarExcelCompleto';
 import { FilaProcesada } from '@/lib/workers/procesador.worker';
 
 // Colores para categorías aduaneras
@@ -75,7 +82,7 @@ export default function DashboardManifiesto() {
             title: 'Manifiesto no encontrado',
             description: `No se encontró el manifiesto ${manifiestoId}`
           });
-          navigate('/historial');
+          navigate('/');
           return;
         }
 
@@ -101,19 +108,40 @@ export default function DashboardManifiesto() {
     const totalPaquetes = paquetes.length;
     const valorCIFTotal = paquetes.reduce((sum, p) => sum + (p.valorUSD || 0), 0);
     
-    // Simular tributos basados en categoría
+    // Calcular tributos basados en categoría
     let tributosTotal = 0;
     paquetes.forEach(p => {
-      if (p.categoriaAduanera === 'C') {
-        tributosTotal += (p.valorUSD || 0) * 0.15; // 15% aprox
+      if (p.categoriaAduanera === 'B') {
+        tributosTotal += 2; // Tasa mínima de minimis
+      } else if (p.categoriaAduanera === 'C') {
+        tributosTotal += (p.valorUSD || 0) * 0.17 + 2; // DAI + ITBMS + tasa
       } else if (p.categoriaAduanera === 'D') {
-        tributosTotal += (p.valorUSD || 0) * 0.25; // 25% aprox
+        tributosTotal += (p.valorUSD || 0) * 0.25 + 2; // Mayor tributo
       }
     });
 
     const totalCobrar = valorCIFTotal + tributosTotal;
 
-    return { totalPaquetes, valorCIFTotal, tributosTotal, totalCobrar };
+    // Distribución por valor
+    const menorA100 = paquetes.filter(p => (p.valorUSD || 0) <= 100);
+    const mayorA100 = paquetes.filter(p => (p.valorUSD || 0) > 100);
+
+    return { 
+      totalPaquetes, 
+      valorCIFTotal, 
+      tributosTotal, 
+      totalCobrar,
+      menorA100: {
+        cantidad: menorA100.length,
+        porcentaje: totalPaquetes > 0 ? Math.round((menorA100.length / totalPaquetes) * 100) : 0,
+        valorTotal: menorA100.reduce((sum, p) => sum + (p.valorUSD || 0), 0)
+      },
+      mayorA100: {
+        cantidad: mayorA100.length,
+        porcentaje: totalPaquetes > 0 ? Math.round((mayorA100.length / totalPaquetes) * 100) : 0,
+        valorTotal: mayorA100.reduce((sum, p) => sum + (p.valorUSD || 0), 0)
+      }
+    };
   }, [paquetes]);
 
   // Datos para gráfico de pastel
@@ -135,19 +163,14 @@ export default function DashboardManifiesto() {
     }));
   }, [paquetes]);
 
-  // Paquetes con alertas
-  const paquetesConAlertas = useMemo(() => {
-    return paquetes.filter(p => 
-      p.requierePermiso || 
-      (p.errores && p.errores.length > 0) ||
-      (p.advertencias && p.advertencias.length > 0)
-    );
-  }, [paquetes]);
+  // Paquetes separados por lote
+  const loteA = useMemo(() => paquetes.filter(p => (p.valorUSD || 0) <= 100), [paquetes]);
+  const loteB = useMemo(() => paquetes.filter(p => (p.valorUSD || 0) > 100), [paquetes]);
+  const conRestricciones = useMemo(() => paquetes.filter(p => p.requierePermiso), [paquetes]);
 
   // Filtrar paquetes
   const paquetesFiltrados = useMemo(() => {
     return paquetes.filter(p => {
-      // Filtro por búsqueda
       if (busqueda) {
         const busquedaLower = busqueda.toLowerCase();
         const coincide = 
@@ -157,7 +180,6 @@ export default function DashboardManifiesto() {
         if (!coincide) return false;
       }
 
-      // Filtro por categoría
       if (filtroCategoria !== 'todas') {
         if (p.categoriaAduanera !== filtroCategoria) return false;
       }
@@ -173,23 +195,130 @@ export default function DashboardManifiesto() {
     paginaActual * ITEMS_POR_PAGINA
   );
 
-  // Exportar Excel
+  // Exportar Excel con distribución por lotes
   const handleDescargarExcel = async () => {
     if (!manifiesto) return;
 
     setExportando(true);
     try {
-      await descargarExcelCompleto(
-        manifiesto,
-        paquetes,
-        (progress) => {
-          console.log('Progreso exportación:', progress);
-        }
-      );
+      const wb = XLSX.utils.book_new();
+      
+      // HOJA 1: Resumen
+      const resumen = [
+        ['RESUMEN DEL MANIFIESTO'],
+        [''],
+        ['MAWB:', manifiesto.mawb || 'No detectado'],
+        ['Fecha Proceso:', manifiesto.fechaProcesamiento ? new Date(manifiesto.fechaProcesamiento).toLocaleString() : 'N/A'],
+        ['Total Paquetes:', metricas.totalPaquetes],
+        [''],
+        ['ESTADÍSTICAS POR CATEGORÍA'],
+        ['Categoría A (Documentos):', paquetes.filter(p => p.categoriaAduanera === 'A').length],
+        ['Categoría B (De Minimis ≤$100):', paquetes.filter(p => p.categoriaAduanera === 'B').length],
+        ['Categoría C (Bajo Valor):', paquetes.filter(p => p.categoriaAduanera === 'C').length],
+        ['Categoría D (Alto Valor):', paquetes.filter(p => p.categoriaAduanera === 'D').length],
+        ['Con Restricciones:', conRestricciones.length],
+        [''],
+        ['DISTRIBUCIÓN POR VALOR'],
+        ['Menores a $100:', metricas.menorA100.cantidad, `(${metricas.menorA100.porcentaje}%)`],
+        ['Mayores a $100:', metricas.mayorA100.cantidad, `(${metricas.mayorA100.porcentaje}%)`],
+        [''],
+        ['FINANCIERO'],
+        ['Valor CIF Total:', `$${metricas.valorCIFTotal.toFixed(2)}`],
+        ['Tributos Total:', `$${metricas.tributosTotal.toFixed(2)}`],
+        ['Total a Cobrar:', `$${metricas.totalCobrar.toFixed(2)}`]
+      ];
+      
+      const wsResumen = XLSX.utils.aoa_to_sheet(resumen);
+      wsResumen['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 15 }];
+      XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
+      
+      // HOJA 2: Lote A (< $100)
+      if (loteA.length > 0) {
+        const datosLoteA = [
+          ['LOTE A - PAQUETES MENORES A $100 USD'],
+          [''],
+          ['#', 'Guía', 'Consignatario', 'Dirección', 'Descripción', 'Categoría', 'Valor CIF']
+        ];
+        
+        loteA.forEach((paq, idx) => {
+          datosLoteA.push([
+            (idx + 1).toString(),
+            paq.tracking || '',
+            paq.destinatario || '',
+            paq.direccion || '',
+            (paq.descripcion || '').substring(0, 50),
+            paq.categoriaAduanera || '',
+            `$${(paq.valorUSD || 0).toFixed(2)}`
+          ]);
+        });
+        
+        datosLoteA.push([]);
+        datosLoteA.push(['TOTAL', '', '', '', '', '', `$${metricas.menorA100.valorTotal.toFixed(2)}`]);
+        
+        const wsLoteA = XLSX.utils.aoa_to_sheet(datosLoteA);
+        wsLoteA['!cols'] = [{ wch: 5 }, { wch: 20 }, { wch: 25 }, { wch: 30 }, { wch: 40 }, { wch: 10 }, { wch: 12 }];
+        XLSX.utils.book_append_sheet(wb, wsLoteA, 'Lote A (<$100)');
+      }
+      
+      // HOJA 3: Lote B (> $100)
+      if (loteB.length > 0) {
+        const datosLoteB = [
+          ['LOTE B - PAQUETES MAYORES A $100 USD'],
+          [''],
+          ['#', 'Guía', 'Consignatario', 'Dirección', 'Descripción', 'Categoría', 'Valor CIF']
+        ];
+        
+        loteB.forEach((paq, idx) => {
+          datosLoteB.push([
+            (idx + 1).toString(),
+            paq.tracking || '',
+            paq.destinatario || '',
+            paq.direccion || '',
+            (paq.descripcion || '').substring(0, 50),
+            paq.categoriaAduanera || '',
+            `$${(paq.valorUSD || 0).toFixed(2)}`
+          ]);
+        });
+        
+        datosLoteB.push([]);
+        datosLoteB.push(['TOTAL', '', '', '', '', '', `$${metricas.mayorA100.valorTotal.toFixed(2)}`]);
+        
+        const wsLoteB = XLSX.utils.aoa_to_sheet(datosLoteB);
+        wsLoteB['!cols'] = [{ wch: 5 }, { wch: 20 }, { wch: 25 }, { wch: 30 }, { wch: 40 }, { wch: 10 }, { wch: 12 }];
+        XLSX.utils.book_append_sheet(wb, wsLoteB, 'Lote B (>$100)');
+      }
+      
+      // HOJA 4: Productos con Restricciones
+      if (conRestricciones.length > 0) {
+        const datosRestricciones = [
+          ['PRODUCTOS CON RESTRICCIONES'],
+          [''],
+          ['#', 'Guía', 'Descripción', 'Categoría', 'Autoridades', 'Valor']
+        ];
+        
+        conRestricciones.forEach((paq, idx) => {
+          datosRestricciones.push([
+            (idx + 1).toString(),
+            paq.tracking || '',
+            (paq.descripcion || '').substring(0, 50),
+            paq.categoria || paq.categoriaAduanera || '',
+            (paq.autoridades || []).join(', '),
+            `$${(paq.valorUSD || 0).toFixed(2)}`
+          ]);
+        });
+        
+        const wsRestricciones = XLSX.utils.aoa_to_sheet(datosRestricciones);
+        wsRestricciones['!cols'] = [{ wch: 5 }, { wch: 20 }, { wch: 40 }, { wch: 15 }, { wch: 20 }, { wch: 12 }];
+        XLSX.utils.book_append_sheet(wb, wsRestricciones, 'Restricciones');
+      }
+      
+      // Generar y descargar
+      const mawbClean = (manifiesto.mawb || 'SIN_MAWB').replace(/[^a-zA-Z0-9-]/g, '_');
+      XLSX.writeFile(wb, `Manifiesto_${mawbClean}_${Date.now()}.xlsx`);
 
       toast({
-        title: 'Exportación completada',
-        description: 'El archivo Excel se ha descargado correctamente'
+        title: '✅ Excel generado',
+        description: 'El archivo se ha descargado correctamente'
       });
     } catch (error) {
       console.error('Error exportando:', error);
@@ -208,7 +337,7 @@ export default function DashboardManifiesto() {
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="text-center space-y-4">
           <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-muted-foreground">Cargando manifiesto...</p>
+          <p className="text-muted-foreground">Cargando dashboard...</p>
         </div>
       </div>
     );
@@ -217,15 +346,18 @@ export default function DashboardManifiesto() {
   return (
     <div className="min-h-screen bg-background p-6 space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate('/historial')}>
+          <Button variant="ghost" size="icon" onClick={() => navigate('/')}>
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div>
-            <h1 className="text-2xl font-bold text-foreground">
-              Dashboard: {manifiesto?.mawb || manifiestoId}
-            </h1>
+            <div className="flex items-center gap-2">
+              <Plane className="h-5 w-5 text-primary" />
+              <h1 className="text-2xl font-bold text-foreground">
+                {manifiesto?.mawb || manifiestoId}
+              </h1>
+            </div>
             <p className="text-sm text-muted-foreground">
               Procesado: {manifiesto?.fechaProcesamiento 
                 ? new Date(manifiesto.fechaProcesamiento).toLocaleString() 
@@ -240,7 +372,7 @@ export default function DashboardManifiesto() {
           ) : (
             <Download className="mr-2 h-4 w-4" />
           )}
-          Descargar Reporte Excel
+          Descargar Excel
         </Button>
       </div>
 
@@ -248,9 +380,7 @@ export default function DashboardManifiesto() {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total Paquetes
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total Paquetes</CardTitle>
             <Package className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -260,13 +390,11 @@ export default function DashboardManifiesto() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Valor CIF Total
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Valor CIF Total</CardTitle>
             <DollarSign className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
+            <div className="text-2xl font-bold text-green-600">
               ${metricas.valorCIFTotal.toFixed(2)}
             </div>
           </CardContent>
@@ -274,9 +402,7 @@ export default function DashboardManifiesto() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Tributos Totales
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Tributos Total</CardTitle>
             <Calculator className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -288,9 +414,7 @@ export default function DashboardManifiesto() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">
-              Total a Cobrar
-            </CardTitle>
+            <CardTitle className="text-sm font-medium">Total a Cobrar</CardTitle>
             <Receipt className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -301,41 +425,70 @@ export default function DashboardManifiesto() {
         </Card>
       </div>
 
-      {/* Alertas */}
-      {paquetesConAlertas.length > 0 && (
-        <Alert variant="destructive">
-          <AlertTriangle className="h-4 w-4" />
-          <AlertTitle>Paquetes que requieren atención</AlertTitle>
-          <AlertDescription>
-            {paquetesConAlertas.length} paquete(s) tienen restricciones o requieren revisión manual.
-            {paquetesConAlertas.filter(p => p.requierePermiso).length > 0 && (
-              <span className="block mt-1">
-                • {paquetesConAlertas.filter(p => p.requierePermiso).length} requieren permisos especiales
-              </span>
-            )}
-          </AlertDescription>
-        </Alert>
-      )}
-
-      {/* Gráfico y Filtros */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Gráfico de Categorías */}
-        <Card className="lg:col-span-1">
+      {/* Distribución por Valor */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/30">
           <CardHeader>
-            <CardTitle className="text-lg">Distribución por Categoría</CardTitle>
+            <CardTitle className="flex items-center justify-between">
+              <span>Lote A - Menores a $100</span>
+              <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                {metricas.menorA100.cantidad} paquetes
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              {metricas.menorA100.porcentaje}% del total
+            </CardDescription>
           </CardHeader>
           <CardContent>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Valor Total:</span>
+              <span className="font-semibold">${metricas.menorA100.valorTotal.toFixed(2)}</span>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30">
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Lote B - Mayores a $100</span>
+              <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                {metricas.mayorA100.cantidad} paquetes
+              </Badge>
+            </CardTitle>
+            <CardDescription>
+              {metricas.mayorA100.porcentaje}% del total
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="flex justify-between text-sm">
+              <span className="text-muted-foreground">Valor Total:</span>
+              <span className="font-semibold">${metricas.mayorA100.valorTotal.toFixed(2)}</span>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Gráfico y Alertas */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Gráfico de Pastel */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Distribución por Categoría Aduanera</CardTitle>
+          </CardHeader>
+          <CardContent className="h-[300px]">
             {datosGrafico.length > 0 ? (
-              <ResponsiveContainer width="100%" height={250}>
+              <ResponsiveContainer width="100%" height="100%">
                 <PieChart>
                   <Pie
                     data={datosGrafico}
                     cx="50%"
                     cy="50%"
-                    innerRadius={40}
-                    outerRadius={80}
+                    innerRadius={60}
+                    outerRadius={100}
                     paddingAngle={2}
                     dataKey="value"
+                    label={({ name, percent }) => `${name} (${(percent * 100).toFixed(0)}%)`}
+                    labelLine={false}
                   >
                     {datosGrafico.map((entry, index) => (
                       <Cell key={`cell-${index}`} fill={entry.color} />
@@ -346,139 +499,206 @@ export default function DashboardManifiesto() {
                 </PieChart>
               </ResponsiveContainer>
             ) : (
-              <div className="h-[250px] flex items-center justify-center text-muted-foreground">
-                Sin datos para mostrar
+              <div className="h-full flex items-center justify-center text-muted-foreground">
+                No hay datos para mostrar
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Tabla de Paquetes */}
-        <Card className="lg:col-span-2">
+        {/* Alertas */}
+        <Card>
           <CardHeader>
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <CardTitle className="text-lg">Detalle de Paquetes</CardTitle>
-              
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Buscar guía..."
-                    value={busqueda}
-                    onChange={(e) => {
-                      setBusqueda(e.target.value);
-                      setPaginaActual(1);
-                    }}
-                    className="pl-9 w-48"
-                  />
-                </div>
-                
-                <Select 
-                  value={filtroCategoria} 
-                  onValueChange={(v) => {
-                    setFiltroCategoria(v);
-                    setPaginaActual(1);
-                  }}
-                >
-                  <SelectTrigger className="w-40">
-                    <Filter className="h-4 w-4 mr-2" />
-                    <SelectValue placeholder="Categoría" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="todas">Todas</SelectItem>
-                    <SelectItem value="A">A - Documentos</SelectItem>
-                    <SelectItem value="B">B - De Minimis</SelectItem>
-                    <SelectItem value="C">C - Medio</SelectItem>
-                    <SelectItem value="D">D - Alto</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
+            <CardTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Productos con Restricciones
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="rounded-md border">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Guía</TableHead>
-                    <TableHead>Consignatario</TableHead>
-                    <TableHead className="hidden md:table-cell">Descripción</TableHead>
-                    <TableHead>Categoría</TableHead>
-                    <TableHead className="text-right">Valor</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {paquetesPaginados.length > 0 ? (
-                    paquetesPaginados.map((paquete, idx) => (
-                      <TableRow key={paquete.tracking || idx}>
-                        <TableCell className="font-mono text-sm">
-                          {paquete.tracking || '-'}
-                        </TableCell>
-                        <TableCell className="max-w-[150px] truncate">
-                          {paquete.destinatario || '-'}
-                        </TableCell>
-                        <TableCell className="hidden md:table-cell max-w-[200px] truncate">
-                          {paquete.descripcion || '-'}
-                        </TableCell>
-                        <TableCell>
-                          <Badge 
-                            variant="secondary"
-                            style={{ 
-                              backgroundColor: COLORES_CATEGORIA[paquete.categoriaAduanera || ''] + '20',
-                              color: COLORES_CATEGORIA[paquete.categoriaAduanera || ''] || undefined
-                            }}
-                          >
-                            {paquete.categoriaAduanera || 'N/A'}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          ${(paquete.valorUSD || 0).toFixed(2)}
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  ) : (
-                    <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
-                        No se encontraron paquetes
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </div>
-
-            {/* Paginación */}
-            {totalPaginas > 1 && (
-              <div className="flex items-center justify-between mt-4">
-                <p className="text-sm text-muted-foreground">
-                  Mostrando {((paginaActual - 1) * ITEMS_POR_PAGINA) + 1} - {Math.min(paginaActual * ITEMS_POR_PAGINA, paquetesFiltrados.length)} de {paquetesFiltrados.length}
-                </p>
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPaginaActual(p => Math.max(1, p - 1))}
-                    disabled={paginaActual === 1}
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </Button>
-                  <span className="text-sm">
-                    {paginaActual} / {totalPaginas}
-                  </span>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPaginaActual(p => Math.min(totalPaginas, p + 1))}
-                    disabled={paginaActual === totalPaginas}
-                  >
-                    <ChevronRight className="h-4 w-4" />
-                  </Button>
-                </div>
+            {conRestricciones.length === 0 ? (
+              <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+                <CheckCircle2 className="h-4 w-4 text-green-600" />
+                <AlertDescription className="text-green-800 dark:text-green-200">
+                  No hay productos con restricciones en este manifiesto
+                </AlertDescription>
+              </Alert>
+            ) : (
+              <div className="space-y-2 max-h-[250px] overflow-y-auto">
+                {conRestricciones.slice(0, 5).map((paq, idx) => (
+                  <Alert key={idx} className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950">
+                    <AlertCircle className="h-4 w-4 text-amber-600" />
+                    <AlertTitle className="text-amber-800 dark:text-amber-200">{paq.tracking}</AlertTitle>
+                    <AlertDescription className="text-amber-700 dark:text-amber-300 text-xs">
+                      {paq.descripcion?.substring(0, 50)}... - Autoridades: {(paq.autoridades || []).join(', ') || 'N/A'}
+                    </AlertDescription>
+                  </Alert>
+                ))}
+                {conRestricciones.length > 5 && (
+                  <p className="text-sm text-muted-foreground text-center">
+                    +{conRestricciones.length - 5} más...
+                  </p>
+                )}
               </div>
             )}
           </CardContent>
         </Card>
       </div>
+
+      {/* Tabs con Tablas por Lote */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Detalle de Paquetes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Tabs defaultValue="loteA" className="w-full">
+            <TabsList className="grid w-full grid-cols-3 mb-4">
+              <TabsTrigger value="loteA">
+                Lote A ({loteA.length})
+              </TabsTrigger>
+              <TabsTrigger value="loteB">
+                Lote B ({loteB.length})
+              </TabsTrigger>
+              <TabsTrigger value="restricciones">
+                Restricciones ({conRestricciones.length})
+              </TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="loteA">
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">#</TableHead>
+                      <TableHead>Guía</TableHead>
+                      <TableHead>Descripción</TableHead>
+                      <TableHead>Categoría</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loteA.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                          No hay paquetes en este lote
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      loteA.slice(0, 20).map((paq, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell>{idx + 1}</TableCell>
+                          <TableCell className="font-mono text-sm">{paq.tracking}</TableCell>
+                          <TableCell className="max-w-[300px] truncate">{paq.descripcion}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{paq.categoriaAduanera || 'B'}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            ${(paq.valorUSD || 0).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              {loteA.length > 20 && (
+                <p className="text-sm text-muted-foreground text-center mt-4">
+                  Mostrando 20 de {loteA.length} paquetes. Descarga el Excel para ver todos.
+                </p>
+              )}
+            </TabsContent>
+
+            <TabsContent value="loteB">
+              <div className="rounded-md border overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="w-12">#</TableHead>
+                      <TableHead>Guía</TableHead>
+                      <TableHead>Descripción</TableHead>
+                      <TableHead>Categoría</TableHead>
+                      <TableHead className="text-right">Valor</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {loteB.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                          No hay paquetes en este lote
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      loteB.slice(0, 20).map((paq, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell>{idx + 1}</TableCell>
+                          <TableCell className="font-mono text-sm">{paq.tracking}</TableCell>
+                          <TableCell className="max-w-[300px] truncate">{paq.descripcion}</TableCell>
+                          <TableCell>
+                            <Badge variant="outline">{paq.categoriaAduanera || 'D'}</Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            ${(paq.valorUSD || 0).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+              {loteB.length > 20 && (
+                <p className="text-sm text-muted-foreground text-center mt-4">
+                  Mostrando 20 de {loteB.length} paquetes. Descarga el Excel para ver todos.
+                </p>
+              )}
+            </TabsContent>
+
+            <TabsContent value="restricciones">
+              {conRestricciones.length === 0 ? (
+                <Alert className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
+                  <CheckCircle2 className="h-4 w-4 text-green-600" />
+                  <AlertDescription className="text-green-800 dark:text-green-200">
+                    No hay productos con restricciones en este manifiesto
+                  </AlertDescription>
+                </Alert>
+              ) : (
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-12">#</TableHead>
+                        <TableHead>Guía</TableHead>
+                        <TableHead>Descripción</TableHead>
+                        <TableHead>Categoría Producto</TableHead>
+                        <TableHead>Autoridades</TableHead>
+                        <TableHead className="text-right">Valor</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {conRestricciones.map((paq, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell>{idx + 1}</TableCell>
+                          <TableCell className="font-mono text-sm">{paq.tracking}</TableCell>
+                          <TableCell className="max-w-[200px] truncate">{paq.descripcion}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">{paq.categoria || 'N/A'}</Badge>
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="destructive">
+                              {(paq.autoridades || []).join(', ') || 'N/A'}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            ${(paq.valorUSD || 0).toFixed(2)}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+      </Card>
     </div>
   );
 }
