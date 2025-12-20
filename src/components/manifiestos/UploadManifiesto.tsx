@@ -1,49 +1,39 @@
 /**
- * COMPONENTE SIMPLIFICADO DE UPLOAD DE MANIFIESTO
+ * COMPONENTE DE UPLOAD DE MANIFIESTO - PROCESAMIENTO AUTOMÁTICO
  * 
- * - Input de MAWB
- * - Input de archivo Excel
- * - Botón "Procesar Manifiesto"
- * - Barra de progreso
+ * - El usuario SOLO sube el archivo Excel
+ * - El sistema procesa TODO automáticamente:
+ *   - Detecta MAWB
+ *   - Detecta columnas
+ *   - Clasifica productos
+ *   - Calcula liquidaciones
+ *   - Genera distribución por valor
  * 
- * Envía directamente al worker sin mapeo manual.
- * Usa detección automática de columnas.
+ * NO REQUIERE MAPEO MANUAL DE COLUMNAS
  */
 
 import { useState, useCallback, useEffect } from 'react';
-import { Upload, FileSpreadsheet, X, AlertCircle, Plane, Check, Play, Loader2 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Upload, FileSpreadsheet, X, AlertCircle, CheckCircle2, Play, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/hooks/use-toast';
 import { GestorLocks } from '@/lib/concurrencia/gestorLocks';
-
-// Códigos de aerolíneas en Tocumen
-const AIRLINE_CODES: Record<string, string> = {
-  '230': 'Avianca',
-  '172': 'Copa Airlines',
-  '139': 'American Airlines',
-  '157': 'United Airlines',
-  '001': 'American Airlines Cargo',
-  '176': 'Emirates SkyCargo',
-  '406': 'Atlas Air',
-};
-
-interface MAWBInfo {
-  mawb: string;
-  airlineCode: string;
-  airlineName: string;
-  sequenceNumber: string;
-  formatted: string;
-  isValid: boolean;
-}
+import { guardarManifiesto } from '@/lib/db/database';
 
 interface ProgresoInfo {
   porcentaje: number;
   mensaje: string;
-  fase: 'idle' | 'leyendo' | 'procesando' | 'liquidando' | 'guardando' | 'completado' | 'error';
+  fase: 'idle' | 'analizando' | 'procesando' | 'liquidando' | 'guardando' | 'completado' | 'error';
+}
+
+interface AnalisisInfo {
+  mawb: string;
+  aerolinea: string;
+  confianza: number;
+  advertencias: string[];
 }
 
 interface UploadManifiestoProps {
@@ -51,47 +41,13 @@ interface UploadManifiestoProps {
   onError?: (error: Error) => void;
 }
 
-function parseMAWB(input: string): MAWBInfo | null {
-  const cleaned = input.replace(/^mawb\s*/i, '').replace(/\s+/g, '').trim();
-  
-  if (!cleaned) return null;
-
-  let airlineCode = '';
-  let sequenceNumber = '';
-
-  if (cleaned.includes('-')) {
-    const parts = cleaned.split('-');
-    if (parts.length === 2) {
-      airlineCode = parts[0];
-      sequenceNumber = parts[1];
-    }
-  } else if (cleaned.length === 11) {
-    airlineCode = cleaned.substring(0, 3);
-    sequenceNumber = cleaned.substring(3);
-  }
-
-  const isValidAirlineCode = /^\d{3}$/.test(airlineCode);
-  const isValidSequence = /^\d{8}$/.test(sequenceNumber);
-  const isValid = isValidAirlineCode && isValidSequence;
-
-  if (!airlineCode && !sequenceNumber) return null;
-
-  return {
-    mawb: cleaned,
-    airlineCode,
-    airlineName: AIRLINE_CODES[airlineCode] || 'Desconocida',
-    sequenceNumber,
-    formatted: `MAWB ${airlineCode}-${sequenceNumber}`,
-    isValid,
-  };
-}
-
 export function UploadManifiesto({ onComplete, onError }: UploadManifiestoProps) {
+  const navigate = useNavigate();
+  
   // Estados simplificados
   const [archivo, setArchivo] = useState<File | null>(null);
-  const [mawbInput, setMawbInput] = useState('');
-  const [mawbInfo, setMawbInfo] = useState<MAWBInfo | null>(null);
   const [isDragging, setIsDragging] = useState(false);
+  const [analisisInfo, setAnalisisInfo] = useState<AnalisisInfo | null>(null);
   
   // Estado de progreso
   const [progreso, setProgreso] = useState<ProgresoInfo>({
@@ -102,10 +58,8 @@ export function UploadManifiesto({ onComplete, onError }: UploadManifiestoProps)
 
   // Limpieza automática de locks expirados
   useEffect(() => {
-    // Limpiar al montar
     GestorLocks.limpiarLocksExpirados();
     
-    // Limpiar cada hora
     const interval = setInterval(() => {
       GestorLocks.limpiarLocksExpirados();
     }, 60 * 60 * 1000);
@@ -130,6 +84,11 @@ export function UploadManifiesto({ onComplete, onError }: UploadManifiestoProps)
     const file = e.dataTransfer.files[0];
     if (file && (file.name.endsWith('.xlsx') || file.name.endsWith('.xls'))) {
       setArchivo(file);
+      setAnalisisInfo(null);
+      toast({
+        title: 'Archivo seleccionado',
+        description: `${file.name} (${(file.size / 1024).toFixed(0)} KB)`
+      });
     } else {
       toast({
         variant: 'destructive',
@@ -143,21 +102,21 @@ export function UploadManifiesto({ onComplete, onError }: UploadManifiestoProps)
     const file = e.target.files?.[0];
     if (file) {
       setArchivo(file);
+      setAnalisisInfo(null);
+      toast({
+        title: 'Archivo seleccionado',
+        description: `${file.name} (${(file.size / 1024).toFixed(0)} KB)`
+      });
     }
   }, []);
 
   const clearFile = useCallback(() => {
     setArchivo(null);
+    setAnalisisInfo(null);
     setProgreso({ porcentaje: 0, mensaje: '', fase: 'idle' });
   }, []);
 
-  const handleMawbChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const value = e.target.value;
-    setMawbInput(value);
-    setMawbInfo(parseMAWB(value));
-  }, []);
-
-  // Procesar manifiesto - ENVÍA DIRECTAMENTE AL WORKER
+  // Procesar manifiesto - PROCESAMIENTO COMPLETAMENTE AUTOMÁTICO
   const procesarManifiesto = useCallback(async () => {
     if (!archivo) {
       toast({
@@ -168,139 +127,237 @@ export function UploadManifiesto({ onComplete, onError }: UploadManifiestoProps)
       return;
     }
 
-    const mawb = mawbInfo?.formatted || `AUTO-${Date.now()}`;
-
     try {
-      // Intentar adquirir lock
-      setProgreso({ porcentaje: 5, mensaje: 'Verificando disponibilidad...', fase: 'leyendo' });
+      setProgreso({ porcentaje: 5, mensaje: 'Iniciando procesamiento automático...', fase: 'analizando' });
       
-      const lockAdquirido = await GestorLocks.adquirirLock(mawb, 'Operador');
-      
-      if (!lockAdquirido) {
-        return;
-      }
-
       // Leer archivo
-      setProgreso({ porcentaje: 10, mensaje: 'Leyendo archivo Excel...', fase: 'leyendo' });
-      
       const arrayBuffer = await archivo.arrayBuffer();
-
-      // Procesar con worker (simulado por ahora - el worker real se integraría aquí)
-      setProgreso({ porcentaje: 30, mensaje: 'Detectando columnas automáticamente...', fase: 'procesando' });
       
-      // Simular procesamiento progresivo
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setProgreso({ porcentaje: 50, mensaje: 'Clasificando paquetes...', fase: 'procesando' });
+      // Crear worker
+      const worker = new Worker(
+        new URL('@/lib/workers/procesador.worker.ts', import.meta.url),
+        { type: 'module' }
+      );
       
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setProgreso({ porcentaje: 70, mensaje: 'Calculando liquidaciones...', fase: 'liquidando' });
+      // Configurar listeners
+      worker.onmessage = async (e) => {
+        const { tipo, payload } = e.data;
+        
+        if (tipo === 'PROGRESO') {
+          const fase = payload.progreso < 30 ? 'analizando' :
+                       payload.progreso < 70 ? 'procesando' :
+                       payload.progreso < 90 ? 'liquidando' : 'guardando';
+          
+          setProgreso({
+            porcentaje: payload.progreso,
+            mensaje: payload.mensaje,
+            fase
+          });
+        }
+        
+        if (tipo === 'COMPLETADO') {
+          console.log('✅ Procesamiento completado:', payload);
+          
+          const mawb = payload.analisis?.mawb || `AUTO-${Date.now()}`;
+          
+          // Preparar resultado en formato esperado por guardarManifiesto
+          const resultado = {
+            manifiesto: {
+              mawb: payload.manifiesto?.mawb || mawb,
+              fechaProcesamiento: payload.manifiesto?.fechaProceso || new Date().toISOString(),
+              totalFilas: payload.paquetes?.length || 0,
+              filasValidas: payload.paquetes?.length || 0,
+              filasConErrores: 0
+            },
+            filas: payload.paquetes?.map((p: any, i: number) => ({
+              indice: i + 1,
+              tracking: p.numeroGuia || '',
+              destinatario: p.consignatario?.nombreCompleto || '',
+              identificacion: p.consignatario?.identificacion || '',
+              telefono: p.consignatario?.telefono || '',
+              direccion: p.consignatario?.direccion || p.ubicacion?.direccionCompleta || '',
+              descripcion: p.descripcion || '',
+              valorUSD: p.valor || 0,
+              peso: p.peso || 0,
+              provincia: p.ubicacion?.provincia || 'Panamá',
+              ciudad: p.ubicacion?.ciudad || 'Panamá',
+              corregimiento: '',
+              categoria: p.categoriaProducto || 'general',
+              subcategoria: '',
+              requierePermiso: p.requierePermiso || false,
+              autoridades: p.autoridad ? [p.autoridad] : [],
+              categoriaAduanera: p.categoriaAduanera || 'D',
+              confianzaClasificacion: p.confianzaClasificacion || 0,
+              errores: [],
+              advertencias: []
+            })) || [],
+            resumen: {
+              totalPaquetes: payload.paquetes?.length || 0,
+              valorTotal: payload.manifiesto?.estadisticas?.valorCIFTotal || 0,
+              pesoTotal: payload.manifiesto?.estadisticas?.pesoTotal || 0,
+              promedioValor: 0,
+              promedioPeso: 0,
+              porCategoria: {},
+              porProvincia: {},
+              porCategoriaAduanera: {},
+              tiempoProcesamiento: 0
+            },
+            deteccionColumnas: {
+              mapeo: {},
+              confianza: {},
+              noDetectados: [],
+              sugerencias: {}
+            },
+            clasificacion: {
+              categorias: {},
+              requierenPermisos: 0,
+              prohibidos: 0
+            },
+            errores: [],
+            advertencias: payload.analisis?.advertencias || []
+          };
+          
+          // Guardar en base de datos
+          try {
+            await guardarManifiesto(resultado);
+            
+            setProgreso({ 
+              porcentaje: 100, 
+              mensaje: '¡Procesamiento completado!',
+              fase: 'completado' 
+            });
+            
+            // Mostrar información del análisis
+            setAnalisisInfo({
+              mawb: payload.analisis?.mawb || 'No detectado',
+              aerolinea: payload.analisis?.aerolinea || 'Desconocida',
+              confianza: payload.analisis?.confianza || 0,
+              advertencias: payload.analisis?.advertencias || []
+            });
+            
+            toast({
+              title: '✅ Procesamiento completado',
+              description: `MAWB: ${payload.analisis?.mawb} | ${payload.paquetes?.length || 0} paquetes procesados`,
+              duration: 5000
+            });
+            
+            // Callback de completado
+            onComplete?.({
+              mawb,
+              manifiesto: payload.manifiesto,
+              paquetes: payload.paquetes,
+              liquidaciones: payload.liquidaciones
+            });
+            
+            // Navegar al dashboard después de 2 segundos
+            setTimeout(() => {
+              navigate(`/dashboard/${payload.manifiesto.id}`);
+            }, 2000);
+            
+          } catch (error) {
+            console.error('Error guardando:', error);
+            toast({
+              variant: 'destructive',
+              title: 'Error guardando datos',
+              description: error instanceof Error ? error.message : 'Error desconocido'
+            });
+            
+            setProgreso({ 
+              porcentaje: 0, 
+              mensaje: 'Error guardando datos', 
+              fase: 'error' 
+            });
+          }
+          
+          worker.terminate();
+        }
+        
+        if (tipo === 'ERROR') {
+          console.error('Error del worker:', payload);
+          
+          setProgreso({ 
+            porcentaje: 0, 
+            mensaje: payload.mensaje || 'Error desconocido', 
+            fase: 'error' 
+          });
+          
+          toast({
+            variant: 'destructive',
+            title: 'Error en procesamiento',
+            description: payload.mensaje,
+            duration: 10000
+          });
+          
+          onError?.(new Error(payload.mensaje));
+          
+          worker.terminate();
+        }
+      };
       
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setProgreso({ porcentaje: 90, mensaje: 'Guardando resultados...', fase: 'guardando' });
+      worker.onerror = (error) => {
+        console.error('Error crítico del worker:', error);
+        
+        setProgreso({ 
+          porcentaje: 0, 
+          mensaje: 'Error crítico del sistema', 
+          fase: 'error' 
+        });
+        
+        toast({
+          variant: 'destructive',
+          title: 'Error crítico',
+          description: 'Hubo un problema procesando el archivo. Intenta nuevamente.'
+        });
+        
+        onError?.(new Error('Error crítico del worker'));
+        
+        worker.terminate();
+      };
       
-      await new Promise(resolve => setTimeout(resolve, 500));
-      setProgreso({ porcentaje: 100, mensaje: '¡Procesamiento completado!', fase: 'completado' });
-
-      // Liberar lock
-      await GestorLocks.liberarLock(mawb, 'completado');
-
-      toast({
-        title: 'Procesamiento completado',
-        description: `Manifiesto ${mawb} procesado exitosamente`
+      // Enviar datos al worker
+      worker.postMessage({
+        tipo: 'PROCESAR_MANIFIESTO',
+        payload: {
+          archivo: arrayBuffer,
+          operador: 'Usuario Actual' // TODO: Obtener de sistema de auth
+        }
       });
-
-      // Callback de completado
-      onComplete?.({
-        mawb,
-        archivo: archivo.name,
-        timestamp: new Date().toISOString()
-      });
-
+      
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      console.error('Error:', error);
       
       setProgreso({ 
         porcentaje: 0, 
-        mensaje: errorMessage, 
+        mensaje: error instanceof Error ? error.message : 'Error desconocido', 
         fase: 'error' 
       });
-
-      // Liberar lock con error
-      await GestorLocks.liberarLock(mawb, 'error');
-
+      
       toast({
         variant: 'destructive',
-        title: 'Error al procesar',
-        description: errorMessage
+        title: 'Error',
+        description: error instanceof Error ? error.message : 'Error desconocido'
       });
-
-      onError?.(error instanceof Error ? error : new Error(errorMessage));
+      
+      onError?.(error instanceof Error ? error : new Error('Error desconocido'));
     }
-  }, [archivo, mawbInfo, onComplete, onError]);
+  }, [archivo, navigate, onComplete, onError]);
 
   const isProcesando = progreso.fase !== 'idle' && progreso.fase !== 'completado' && progreso.fase !== 'error';
 
   return (
     <div className="w-full max-w-2xl mx-auto space-y-6">
-      {/* Input MAWB */}
-      <div className="bg-card border border-border rounded-xl p-6">
-        <div className="flex items-center gap-2 mb-4">
-          <Plane className="w-5 h-5 text-primary" />
-          <h3 className="font-semibold text-foreground">Número MAWB</h3>
-          <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">Opcional</span>
-        </div>
-        
-        <div className="space-y-2">
-          <Label htmlFor="mawb" className="text-sm text-muted-foreground">
-            Formato: XXX-XXXXXXXX (ej: 230-67035953)
-          </Label>
-          <div className="relative">
-            <Input
-              id="mawb"
-              type="text"
-              placeholder="230-67035953"
-              value={mawbInput}
-              onChange={handleMawbChange}
-              disabled={isProcesando}
-              className={cn(
-                "text-lg font-mono",
-                mawbInfo?.isValid && "border-green-500 focus:border-green-500"
-              )}
-            />
-            {mawbInfo?.isValid && (
-              <Check className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 text-green-500" />
-            )}
-          </div>
-          
-          {mawbInfo && (
-            <div className={cn(
-              "p-3 rounded-lg text-sm",
-              mawbInfo.isValid 
-                ? "bg-green-50 dark:bg-green-950 border border-green-200 dark:border-green-800 text-green-800 dark:text-green-200"
-                : "bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200"
-            )}>
-              {mawbInfo.isValid ? (
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="font-medium">{mawbInfo.formatted}</p>
-                    <p className="text-xs mt-0.5 opacity-80">
-                      Aerolínea: {mawbInfo.airlineName} ({mawbInfo.airlineCode})
-                    </p>
-                  </div>
-                  <Check className="w-5 h-5" />
-                </div>
-              ) : (
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4" />
-                  <span>Formato incorrecto. Use: XXX-XXXXXXXX</span>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
+      {/* Título e instrucciones */}
+      <div className="text-center space-y-2">
+        <h2 className="text-2xl font-bold text-foreground">
+          Procesamiento Automático de Manifiestos
+        </h2>
+        <p className="text-muted-foreground">
+          Sube tu archivo Excel y el sistema procesará todo automáticamente.
+          No requiere configuración manual.
+        </p>
       </div>
 
-      {/* Input Archivo Excel */}
+      {/* Zona de drop del archivo */}
       <div
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
@@ -399,6 +456,38 @@ export function UploadManifiesto({ onComplete, onError }: UploadManifiestoProps)
         </div>
       )}
 
+      {/* Información del análisis completado */}
+      {analisisInfo && progreso.fase === 'completado' && (
+        <Alert className="border-green-500 bg-green-50 dark:bg-green-950">
+          <CheckCircle2 className="h-4 w-4 text-green-600" />
+          <AlertDescription>
+            <div className="space-y-2">
+              <p className="font-semibold text-green-800 dark:text-green-200">
+                ✅ Análisis completado exitosamente
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-sm text-green-700 dark:text-green-300">
+                <div>MAWB: {analisisInfo.mawb}</div>
+                <div>Aerolínea: {analisisInfo.aerolinea}</div>
+                <div>Confianza: {(analisisInfo.confianza * 100).toFixed(0)}%</div>
+              </div>
+              {analisisInfo.advertencias.length > 0 && (
+                <div className="mt-2 text-xs text-amber-600 dark:text-amber-400">
+                  <p className="font-medium">Advertencias:</p>
+                  <ul className="list-disc list-inside">
+                    {analisisInfo.advertencias.map((adv, i) => (
+                      <li key={i}>{adv}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <p className="text-xs text-green-600 dark:text-green-400 animate-pulse">
+                Redirigiendo al dashboard...
+              </p>
+            </div>
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Botón Procesar */}
       <Button 
         onClick={procesarManifiesto}
@@ -409,7 +498,7 @@ export function UploadManifiesto({ onComplete, onError }: UploadManifiestoProps)
         {isProcesando ? (
           <>
             <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-            Procesando...
+            Procesando automáticamente...
           </>
         ) : (
           <>
@@ -419,11 +508,23 @@ export function UploadManifiesto({ onComplete, onError }: UploadManifiestoProps)
         )}
       </Button>
 
-      {/* Info de detección automática */}
-      <p className="text-xs text-center text-muted-foreground">
-        Las columnas del Excel se detectan automáticamente usando 300+ patrones.
-        No requiere mapeo manual.
-      </p>
+      {/* Info del sistema automático */}
+      <div className="bg-muted/50 rounded-lg p-4 text-sm text-muted-foreground">
+        <p className="font-medium text-foreground mb-2">
+          🤖 El sistema detectará automáticamente:
+        </p>
+        <ul className="grid grid-cols-2 gap-1 text-xs">
+          <li>• MAWB en formato IATA</li>
+          <li>• Aerolínea según prefijo</li>
+          <li>• Guías de tracking</li>
+          <li>• Datos del consignatario</li>
+          <li>• Descripción de productos</li>
+          <li>• Peso, volumen y valor</li>
+          <li>• Clasificación HTS automática</li>
+          <li>• Cálculo de tributos</li>
+          <li>• Distribución por valor</li>
+        </ul>
+      </div>
     </div>
   );
 }
