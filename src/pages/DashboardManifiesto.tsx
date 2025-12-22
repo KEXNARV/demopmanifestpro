@@ -16,10 +16,11 @@ import {
   Package, DollarSign, Calculator, Receipt, 
   Download, AlertTriangle, Search, Filter,
   ChevronLeft, ChevronRight, ArrowLeft, FileSpreadsheet,
-  Plane, CheckCircle2, AlertCircle, TrendingUp
+  Plane, CheckCircle2, AlertCircle, TrendingUp, Pill
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import * as XLSX from 'xlsx';
+import { saveAs } from 'file-saver';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -39,6 +40,10 @@ import { toast } from '@/hooks/use-toast';
 
 import { obtenerManifiesto, obtenerFilasPorManifiesto } from '@/lib/db/database';
 import { FilaProcesada } from '@/lib/workers/procesador.worker';
+import { 
+  extraerProductosFarmaceuticos, 
+  generarReporteFarmaceuticos 
+} from '@/lib/exportacion/reporteFarmaceuticos';
 
 // Colores para categorías aduaneras
 const COLORES_CATEGORIA: Record<string, string> = {
@@ -60,6 +65,7 @@ export default function DashboardManifiesto() {
   const [paquetes, setPaquetes] = useState<FilaProcesada[]>([]);
   const [cargando, setCargando] = useState(true);
   const [exportando, setExportando] = useState(false);
+  const [exportandoFarma, setExportandoFarma] = useState(false);
 
   // Filtros y paginación
   const [busqueda, setBusqueda] = useState('');
@@ -167,6 +173,30 @@ export default function DashboardManifiesto() {
   const loteA = useMemo(() => paquetes.filter(p => (p.valorUSD || 0) <= 100), [paquetes]);
   const loteB = useMemo(() => paquetes.filter(p => (p.valorUSD || 0) > 100), [paquetes]);
   const conRestricciones = useMemo(() => paquetes.filter(p => p.requierePermiso), [paquetes]);
+  
+  // Productos farmacéuticos
+  const productosFarmaceuticos = useMemo(() => {
+    // Convertir FilaProcesada a ManifestRow para la función
+    const paquetesParaAnalisis = paquetes.map(p => ({
+      trackingNumber: p.tracking || '',
+      recipient: p.destinatario || '',
+      identification: p.identificacion || '',
+      phone: p.telefono || '',
+      address: p.direccion || '',
+      description: p.descripcion || '',
+      valueUSD: p.valorUSD || 0,
+      weight: p.peso || 0,
+      province: p.provincia || '',
+      city: p.ciudad || '',
+      district: (p as any).distrito || '',
+      detectedProvince: p.provincia,
+      detectedCity: p.ciudad,
+      email: (p as any).email || '',
+      codigoArancelario: (p as any).codigoArancelario || '',
+      amazonTracking: (p as any).amazonTracking || ''
+    }));
+    return extraerProductosFarmaceuticos(paquetesParaAnalisis as any, []);
+  }, [paquetes]);
 
   // Filtrar paquetes
   const paquetesFiltrados = useMemo(() => {
@@ -332,6 +362,64 @@ export default function DashboardManifiesto() {
     }
   };
 
+  // Descargar reporte farmacéuticos MINSA
+  const handleDescargarFarmaceuticos = async () => {
+    if (!manifiesto || productosFarmaceuticos.length === 0) {
+      toast({
+        variant: 'destructive',
+        title: 'Sin productos farmacéuticos',
+        description: 'No se detectaron productos farmacéuticos en este manifiesto'
+      });
+      return;
+    }
+
+    setExportandoFarma(true);
+    try {
+      const paquetesParaAnalisis = paquetes.map(p => ({
+        trackingNumber: p.tracking || '',
+        recipient: p.destinatario || '',
+        identification: p.identificacion || '',
+        phone: p.telefono || '',
+        address: p.direccion || '',
+        description: p.descripcion || '',
+        valueUSD: p.valorUSD || 0,
+        weight: p.peso || 0,
+        province: p.provincia || '',
+        city: p.ciudad || '',
+        district: (p as any).distrito || '',
+        detectedProvince: p.provincia,
+        detectedCity: p.ciudad,
+        email: (p as any).email || '',
+        codigoArancelario: (p as any).codigoArancelario || '',
+        amazonTracking: (p as any).amazonTracking || ''
+      }));
+
+      const blob = await generarReporteFarmaceuticos(
+        paquetesParaAnalisis as any, 
+        [], 
+        manifiesto.mawb || 'SIN_MAWB'
+      );
+      
+      const mawbClean = (manifiesto.mawb || 'SIN_MAWB').replace(/[^a-zA-Z0-9-]/g, '_');
+      const fechaHoy = new Date().toISOString().split('T')[0];
+      saveAs(blob, `Reporte_Farmaceuticos_MINSA_${mawbClean}_${fechaHoy}.xlsx`);
+
+      toast({
+        title: '✅ Reporte MINSA generado',
+        description: `Se encontraron ${productosFarmaceuticos.length} productos farmacéuticos`
+      });
+    } catch (error) {
+      console.error('Error exportando farmacéuticos:', error);
+      toast({
+        variant: 'destructive',
+        title: 'Error al exportar',
+        description: 'No se pudo generar el reporte farmacéutico'
+      });
+    } finally {
+      setExportandoFarma(false);
+    }
+  };
+
   if (cargando) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -366,14 +454,32 @@ export default function DashboardManifiesto() {
           </div>
         </div>
 
-        <Button onClick={handleDescargarExcel} disabled={exportando}>
-          {exportando ? (
-            <div className="w-4 h-4 mr-2 border-2 border-current border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <Download className="mr-2 h-4 w-4" />
+        <div className="flex gap-2 flex-wrap">
+          {productosFarmaceuticos.length > 0 && (
+            <Button 
+              variant="outline" 
+              onClick={handleDescargarFarmaceuticos} 
+              disabled={exportandoFarma}
+              className="border-red-300 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
+            >
+              {exportandoFarma ? (
+                <div className="w-4 h-4 mr-2 border-2 border-current border-t-transparent rounded-full animate-spin" />
+              ) : (
+                <Pill className="mr-2 h-4 w-4" />
+              )}
+              Reporte MINSA ({productosFarmaceuticos.length})
+            </Button>
           )}
-          Descargar Excel
-        </Button>
+          
+          <Button onClick={handleDescargarExcel} disabled={exportando}>
+            {exportando ? (
+              <div className="w-4 h-4 mr-2 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Download className="mr-2 h-4 w-4" />
+            )}
+            Descargar Excel
+          </Button>
+        </div>
       </div>
 
       {/* Tarjetas de Resumen */}
