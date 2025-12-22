@@ -117,11 +117,22 @@ export class MotorFiltroSanitario {
   // MÉTODOS PRIVADOS
   // ============================================
 
+  /**
+   * Verifica si una keyword aparece como palabra completa (word boundary)
+   * Evita falsos positivos como "glasses" matcheando "gel"
+   */
+  private matchPalabraCompleta(descripcion: string, keyword: string): boolean {
+    // Crear regex con word boundaries para evitar matches parciales
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const regex = new RegExp(`(^|[^a-z])${escaped}([^a-z]|$)`, 'i');
+    return regex.test(descripcion);
+  }
+
   private detectarKeywords(descripcion: string): string[] {
     const encontradas: string[] = [];
     
     for (const keyword of KEYWORDS_MINSA) {
-      if (descripcion.includes(keyword.toLowerCase())) {
+      if (this.matchPalabraCompleta(descripcion, keyword)) {
         encontradas.push(keyword);
       }
     }
@@ -131,7 +142,7 @@ export class MotorFiltroSanitario {
 
   private verificarListaNegra(descripcion: string): boolean {
     for (const keyword of KEYWORDS_PROHIBIDOS) {
-      if (descripcion.includes(keyword.toLowerCase())) {
+      if (this.matchPalabraCompleta(descripcion, keyword)) {
         return true;
       }
     }
