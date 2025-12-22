@@ -21,6 +21,7 @@ import {
   ProcessingWarning
 } from '@/types/manifest';
 import { ResultadoValidacionLote } from '@/lib/validacion/validadorGuias';
+import { AnalizadorManifiesto } from '@/lib/analizador/analizador-manifiesto-completo';
 import { toast } from 'sonner';
 
 type ProcessingStep = 'upload' | 'mapping' | 'preview' | 'processing' | 'results';
@@ -44,6 +45,7 @@ export default function Index() {
     setIsLoading(true);
     
     try {
+      // Leer datos del Excel
       const data = await parseExcelFile(file);
       
       if (data.data.length === 0) {
@@ -52,6 +54,31 @@ export default function Index() {
 
       setRawData(data);
       setFileLoaded(true);
+
+      // Detectar MAWB automáticamente desde el archivo
+      try {
+        const arrayBuffer = await file.arrayBuffer();
+        const analisis = await AnalizadorManifiesto.analizarArchivo(arrayBuffer);
+        
+        if (analisis.mawb && analisis.aerolinea) {
+          const detectedMawb: MAWBInfo = {
+            mawb: analisis.mawb,
+            airlineCode: analisis.prefijoIATA || analisis.mawb.split('-')[0] || '000',
+            airlineName: analisis.aerolinea,
+            sequenceNumber: analisis.mawb.includes('-') ? analisis.mawb.split('-')[1] : analisis.mawb.slice(3),
+            formatted: `MAWB ${analisis.mawb}`,
+            isValid: true,
+          };
+          setMawbInfo(detectedMawb);
+          toast.success(
+            `✈️ MAWB detectado: ${analisis.mawb} - ${analisis.aerolinea}`,
+            { duration: 5000 }
+          );
+        }
+      } catch (mawbError) {
+        console.warn('No se pudo detectar MAWB automáticamente:', mawbError);
+      }
+
       toast.success(`Archivo cargado: ${data.data.length.toLocaleString()} registros - Presiona "Procesar" para continuar`);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error desconocido');

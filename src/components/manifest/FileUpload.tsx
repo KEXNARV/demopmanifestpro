@@ -208,64 +208,91 @@ export function FileUpload({ onFileSelect, onMawbChange, onProcess, mawbInfo, is
         </div>
       )}
 
-      {/* MAWB Input Section - Optional */}
+      {/* MAWB Display Section */}
       {fileLoaded && (
         <div className="card-elevated p-6 animate-fade-in">
           <div className="flex items-center gap-2 mb-4">
             <Plane className="w-5 h-5 text-primary" />
-            <h3 className="font-semibold text-foreground">Número MAWB (Master Air Waybill)</h3>
-            <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">Opcional</span>
+            <h3 className="font-semibold text-foreground">Master Air Waybill (MAWB)</h3>
           </div>
           
-          <div className="space-y-3">
-            <div>
-              <Label htmlFor="mawb-input" className="text-sm text-muted-foreground">
-                Formato: MAWB XXX-XXXXXXXX (ej: MAWB 230-67035953)
-              </Label>
-              <div className="relative mt-1">
-                <Input
-                  id="mawb-input"
-                  type="text"
-                  placeholder="230-67035953"
-                  value={mawbInput}
-                  onChange={handleMawbInputChange}
-                  className={cn(
-                    "text-lg font-mono",
-                    mawbInfo?.isValid && "border-green-500 focus:border-green-500"
-                  )}
-                />
-                {mawbInfo?.isValid && (
-                  <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                    <Check className="w-5 h-5 text-green-500" />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {mawbInfo && (
-              <div className={cn(
-                "p-3 rounded-lg text-sm",
-                mawbInfo.isValid 
-                  ? "bg-green-50 border border-green-200 text-green-800"
-                  : "bg-amber-50 border border-amber-200 text-amber-800"
-              )}>
-                {mawbInfo.isValid ? (
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="font-medium">{mawbInfo.formatted}</p>
-                      <p className="text-xs mt-0.5">Aerolínea: {mawbInfo.airlineName} ({mawbInfo.airlineCode})</p>
-                    </div>
+          {/* Auto-detected MAWB */}
+          {mawbInfo?.isValid && (
+            <div className="p-4 rounded-lg bg-green-50 border border-green-200 mb-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center">
                     <Check className="w-5 h-5 text-green-600" />
                   </div>
-                ) : (
+                  <div>
+                    <p className="font-semibold text-green-800">{mawbInfo.formatted}</p>
+                    <p className="text-sm text-green-700">
+                      ✈️ Aerolínea: <span className="font-medium">{mawbInfo.airlineName}</span> ({mawbInfo.airlineCode})
+                    </p>
+                  </div>
+                </div>
+                <div className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded">
+                  Detectado automáticamente
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Manual MAWB Input - Only show if not auto-detected */}
+          {!mawbInfo?.isValid && (
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="mawb-input" className="text-sm text-muted-foreground">
+                  No se detectó MAWB automáticamente. Ingresa manualmente (opcional):
+                </Label>
+                <div className="relative mt-1">
+                  <Input
+                    id="mawb-input"
+                    type="text"
+                    placeholder="906-12345678"
+                    value={mawbInput}
+                    onChange={handleMawbInputChange}
+                    className={cn(
+                      "text-lg font-mono",
+                      mawbInfo?.isValid && "border-green-500 focus:border-green-500"
+                    )}
+                  />
+                  {mawbInfo?.isValid && (
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                      <Check className="w-5 h-5 text-green-500" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {mawbInfo && !mawbInfo.isValid && (
+                <div className="p-3 rounded-lg text-sm bg-amber-50 border border-amber-200 text-amber-800">
                   <div className="flex items-center gap-2">
                     <AlertCircle className="w-4 h-4" />
-                    <span>Formato incorrecto. Use: XXX-XXXXXXXX</span>
+                    <span>Formato incorrecto. Use: XXX-XXXXXXXX (ej: 906-12345678)</span>
                   </div>
-                )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Option to override auto-detected MAWB */}
+          {mawbInfo?.isValid && (
+            <details className="mt-3">
+              <summary className="text-xs text-muted-foreground cursor-pointer hover:text-foreground">
+                ¿MAWB incorrecto? Ingresa manualmente
+              </summary>
+              <div className="mt-2">
+                <Input
+                  type="text"
+                  placeholder="906-12345678"
+                  value={mawbInput}
+                  onChange={handleMawbInputChange}
+                  className="text-sm font-mono"
+                />
               </div>
-            )}
-          </div>
+            </details>
+          )}
         </div>
       )}
 
