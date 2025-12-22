@@ -32,56 +32,209 @@ export interface ClasificacionResult {
 // Base de datos de palabras clave por categoría de producto
 const CATEGORIAS_PRODUCTO: Record<CategoriaProducto, string[]> = {
   medicamentos: [
-    'medicine', 'medication', 'drug', 'medicamento', 'farmaco',
-    'antibiotic', 'antibiotico', 'ibuprofen', 'paracetamol',
-    'amoxicillin', 'acetaminophen', 'aspirin', 'pharmaceutical',
-    'prescription', 'receta', 'pill', 'tablet', 'capsule'
+    // Términos generales
+    'medicine', 'medication', 'drug', 'medicamento', 'medicamentos', 'farmaco', 'fármaco',
+    'pharmaceutical', 'pharma', 'farma', 'rx', 'prescription', 'receta',
+    // Formas farmacéuticas
+    'pill', 'pills', 'tablet', 'tablets', 'capsule', 'capsules', 'capsula', 'cápsula',
+    'pastilla', 'pastillas', 'tableta', 'tabletas', 'gragea', 'grageas',
+    'syrup', 'jarabe', 'suspension', 'suspensión', 'injection', 'inyeccion', 'inyección',
+    'cream', 'crema', 'ointment', 'pomada', 'ungüento', 'gel', 'drops', 'gotas',
+    'inhaler', 'inhalador', 'patch', 'parche', 'suppository', 'supositorio',
+    // Antibióticos
+    'antibiotic', 'antibiotico', 'antibiótico', 'amoxicillin', 'amoxicilina',
+    'azithromycin', 'azitromicina', 'ciprofloxacin', 'ciprofloxacino',
+    'metronidazole', 'metronidazol', 'penicillin', 'penicilina', 'cephalexin', 'cefalexina',
+    // Analgésicos y antiinflamatorios
+    'ibuprofen', 'ibuprofeno', 'paracetamol', 'acetaminophen', 'acetaminofen',
+    'aspirin', 'aspirina', 'naproxen', 'naproxeno', 'diclofenac', 'diclofenaco',
+    'ketorolac', 'ketorolaco', 'tramadol', 'morphine', 'morfina', 'codeine', 'codeina', 'codeína',
+    // Antihipertensivos y cardiovasculares
+    'losartan', 'enalapril', 'lisinopril', 'amlodipine', 'amlodipino',
+    'metoprolol', 'atenolol', 'carvedilol', 'hydrochlorothiazide', 'hidroclorotiazida',
+    'furosemide', 'furosemida', 'spironolactone', 'espironolactona',
+    // Diabetes
+    'metformin', 'metformina', 'insulin', 'insulina', 'glibenclamide', 'glibenclamida',
+    'glimepiride', 'glimepirida', 'sitagliptin', 'sitagliptina',
+    // Gastrointestinales
+    'omeprazole', 'omeprazol', 'pantoprazole', 'pantoprazol', 'ranitidine', 'ranitidina',
+    'metoclopramide', 'metoclopramida', 'loperamide', 'loperamida',
+    // Antihistamínicos y antialérgicos
+    'loratadine', 'loratadina', 'cetirizine', 'cetirizina', 'diphenhydramine', 'difenhidramina',
+    'chlorpheniramine', 'clorfenamina', 'fexofenadine', 'fexofenadina',
+    // Psicotrópicos
+    'alprazolam', 'diazepam', 'clonazepam', 'lorazepam', 'sertraline', 'sertralina',
+    'fluoxetine', 'fluoxetina', 'escitalopram', 'quetiapine', 'quetiapina',
+    // Hormonales
+    'levothyroxine', 'levotiroxina', 'prednisone', 'prednisona', 'prednisolone', 'prednisolona',
+    'dexamethasone', 'dexametasona', 'hydrocortisone', 'hidrocortisona',
+    // Anticoagulantes
+    'warfarin', 'warfarina', 'heparin', 'heparina', 'rivaroxaban', 'apixaban',
+    // Otros comunes
+    'sildenafil', 'tadalafil', 'finasteride', 'minoxidil', 'clotrimazole', 'clotrimazol',
+    'fluconazole', 'fluconazol', 'acyclovir', 'aciclovir', 'oseltamivir'
   ],
   suplementos: [
-    'supplement', 'vitamin', 'protein', 'suplemento', 'vitamina',
-    'omega', 'collagen', 'colageno', 'probiotic', 'probiotico',
-    'amino', 'dietary', 'herbal', 'mineral', 'calcium'
+    'supplement', 'supplements', 'suplemento', 'suplementos', 'suplemento alimenticio',
+    'vitamin', 'vitamins', 'vitamina', 'vitaminas', 'multivitamin', 'multivitaminico', 'multivitamínico',
+    'vitamin a', 'vitamin b', 'vitamin b12', 'vitamin c', 'vitamin d', 'vitamin e', 'vitamin k',
+    'protein', 'proteina', 'proteína', 'whey protein', 'protein powder',
+    'omega', 'omega 3', 'omega-3', 'fish oil', 'aceite pescado',
+    'collagen', 'colageno', 'colágeno', 'probiotic', 'probiotico', 'probiótico',
+    'prebiotic', 'prebiotico', 'prebiótico', 'amino', 'amino acid', 'aminoacido', 'aminoácido',
+    'dietary', 'herbal', 'mineral', 'minerals', 'minerales',
+    'calcium', 'calcio', 'magnesium', 'magnesio', 'zinc', 'iron', 'hierro',
+    'potassium', 'potasio', 'selenium', 'selenio', 'biotin', 'biotina',
+    'folic acid', 'acido folico', 'ácido fólico', 'melatonin', 'melatonina',
+    'creatine', 'creatina', 'bcaa', 'glutamine', 'glutamina',
+    'ginseng', 'echinacea', 'equinacea', 'garcinia', 'turmeric', 'curcuma', 'cúrcuma',
+    'spirulina', 'chlorella', 'ashwagandha', 'maca', 'glucosamine', 'glucosamina',
+    'chondroitin', 'condroitina', 'msm', 'coq10', 'coenzyme q10'
   ],
   productos_medicos: [
-    'medical device', 'thermometer', 'glucometer', 'oximeter',
-    'syringe', 'catheter', 'mask', 'glove', 'termometro',
-    'surgical', 'diagnostic', 'bandage', 'healthcare'
+    'medical device', 'medical equipment', 'dispositivo medico', 'dispositivo médico',
+    'thermometer', 'termometro', 'termómetro', 'glucometer', 'glucometro', 'glucómetro',
+    'oximeter', 'oximetro', 'oxímetro', 'pulse oximeter',
+    'syringe', 'jeringa', 'jeringas', 'needle', 'needles', 'aguja', 'agujas',
+    'catheter', 'cateter', 'catéter', 'cannula', 'canula', 'cánula',
+    'mask', 'masks', 'mascarilla', 'mascarillas', 'n95', 'kn95', 'surgical mask',
+    'glove', 'gloves', 'guante', 'guantes', 'latex gloves', 'nitrile gloves',
+    'bandage', 'bandages', 'vendaje', 'vendajes', 'venda', 'vendas',
+    'gauze', 'gasa', 'gasas', 'cotton', 'algodon', 'algodón',
+    'surgical', 'quirurgico', 'quirúrgico', 'diagnostic', 'diagnostico', 'diagnóstico',
+    'healthcare', 'blood pressure', 'presion arterial', 'presión arterial',
+    'stethoscope', 'estetoscopio', 'nebulizer', 'nebulizador',
+    'wheelchair', 'silla de ruedas', 'crutches', 'muletas', 'walker', 'andador',
+    'test strips', 'tiras reactivas', 'lancet', 'lanceta', 'lancetas',
+    'first aid', 'primeros auxilios', 'antiseptic', 'antiseptico', 'antiséptico'
   ],
   veterinarios: [
-    'pet', 'dog', 'cat', 'veterinary', 'mascota', 'perro', 'gato',
-    'animal', 'canine', 'feline', 'pet food', 'pet medicine'
+    'pet', 'pets', 'mascota', 'mascotas', 'dog', 'dogs', 'perro', 'perros',
+    'cat', 'cats', 'gato', 'gatos', 'veterinary', 'veterinario', 'vet',
+    'animal', 'animals', 'canine', 'feline', 'felino',
+    'pet food', 'dog food', 'cat food', 'comida mascota', 'alimento mascota',
+    'pet medicine', 'pet medication', 'medicamento mascota',
+    'flea', 'pulga', 'pulgas', 'tick', 'garrapata', 'garrapatas',
+    'dewormer', 'desparasitante', 'heartworm', 'gusano corazon',
+    'pet vitamin', 'pet supplement', 'collar antipulgas', 'flea collar',
+    'bird', 'pajaro', 'pájaro', 'fish', 'pez', 'hamster', 'rabbit', 'conejo'
   ],
   electronica: [
-    'phone', 'laptop', 'tablet', 'camera', 'smartwatch', 'drone',
-    'headphone', 'speaker', 'telefono', 'computadora', 'computer',
-    'electronic', 'cable', 'charger', 'battery', 'iphone', 'samsung',
-    'airpods', 'macbook', 'ipad'
+    'phone', 'phones', 'telefono', 'teléfono', 'smartphone', 'celular', 'cellular',
+    'laptop', 'laptops', 'notebook', 'computer', 'computadora', 'computador', 'pc',
+    'tablet', 'tablets', 'ipad', 'kindle',
+    'camera', 'cameras', 'camara', 'cámara', 'gopro', 'webcam',
+    'smartwatch', 'smart watch', 'reloj inteligente', 'watch', 'reloj',
+    'drone', 'drones', 'dron',
+    'headphone', 'headphones', 'audifonos', 'audífonos', 'earbuds', 'earphones',
+    'speaker', 'speakers', 'parlante', 'parlantes', 'bocina', 'bocinas',
+    'electronic', 'electronics', 'electronico', 'electrónico', 'electronica', 'electrónica',
+    'cable', 'cables', 'charger', 'chargers', 'cargador', 'cargadores',
+    'battery', 'batteries', 'bateria', 'batería', 'pila', 'pilas',
+    'iphone', 'samsung', 'galaxy', 'xiaomi', 'huawei', 'oppo', 'motorola',
+    'airpods', 'macbook', 'imac', 'apple watch', 'pixel', 'oneplus',
+    'monitor', 'monitores', 'keyboard', 'teclado', 'mouse', 'raton', 'ratón',
+    'printer', 'impresora', 'router', 'modem', 'usb', 'hdmi', 'adapter', 'adaptador',
+    'tv', 'television', 'televisor', 'smart tv', 'streaming', 'roku', 'fire stick',
+    'console', 'consola', 'playstation', 'ps5', 'ps4', 'xbox', 'nintendo', 'switch',
+    'gpu', 'graphics card', 'tarjeta grafica', 'tarjeta gráfica', 'processor', 'procesador',
+    'ssd', 'hard drive', 'disco duro', 'memory', 'memoria', 'ram'
   ],
   ropa: [
-    'shirt', 'pants', 'dress', 'jacket', 'clothing', 'apparel',
-    'camisa', 'pantalon', 'vestido', 'ropa', 'sweater', 'blouse',
-    'coat', 'jeans', 'shorts', 't-shirt', 'hoodie'
+    'shirt', 'shirts', 'camisa', 'camisas', 't-shirt', 't-shirts', 'camiseta', 'camisetas',
+    'pants', 'pantalon', 'pantalón', 'pantalones', 'trousers',
+    'dress', 'dresses', 'vestido', 'vestidos',
+    'jacket', 'jackets', 'chaqueta', 'chaquetas', 'blazer',
+    'clothing', 'clothes', 'ropa', 'apparel', 'garment', 'garments', 'prenda', 'prendas',
+    'sweater', 'sweaters', 'sueter', 'suéter', 'jersey',
+    'blouse', 'blouses', 'blusa', 'blusas',
+    'coat', 'coats', 'abrigo', 'abrigos',
+    'jeans', 'denim', 'mezclilla',
+    'shorts', 'short', 'bermuda', 'bermudas',
+    'hoodie', 'hoodies', 'sudadera', 'sudaderas',
+    'underwear', 'ropa interior', 'boxer', 'boxers', 'bra', 'bras', 'brasier',
+    'socks', 'sock', 'calcetines', 'calcetin', 'calcetín', 'medias',
+    'skirt', 'skirts', 'falda', 'faldas',
+    'suit', 'suits', 'traje', 'trajes',
+    'tie', 'ties', 'corbata', 'corbatas',
+    'scarf', 'scarves', 'bufanda', 'bufandas', 'pañuelo',
+    'gloves', 'guantes', 'hat', 'hats', 'sombrero', 'gorra', 'beanie',
+    'belt', 'belts', 'cinturon', 'cinturón', 'cinturones',
+    'pajamas', 'pijama', 'pijamas', 'sleepwear'
   ],
   calzado: [
-    'shoe', 'sneaker', 'boot', 'sandal', 'zapato', 'calzado',
-    'nike', 'adidas', 'jordan', 'footwear', 'slipper', 'heel'
+    'shoe', 'shoes', 'zapato', 'zapatos',
+    'sneaker', 'sneakers', 'tennis', 'tenis', 'zapatilla', 'zapatillas',
+    'boot', 'boots', 'bota', 'botas',
+    'sandal', 'sandals', 'sandalia', 'sandalias',
+    'footwear', 'calzado',
+    'nike', 'adidas', 'jordan', 'puma', 'reebok', 'new balance', 'converse', 'vans',
+    'slipper', 'slippers', 'pantufla', 'pantuflas', 'chancleta', 'chancletas',
+    'heel', 'heels', 'tacon', 'tacón', 'tacones',
+    'flat', 'flats', 'ballerina', 'mocasin', 'mocasín', 'loafer', 'loafers',
+    'flip flop', 'flip flops', 'chancla', 'chanclas',
+    'running shoes', 'athletic shoes', 'sports shoes'
   ],
   alimentos: [
-    'food', 'snack', 'candy', 'chocolate', 'alimento', 'comida',
-    'cookie', 'coffee', 'tea', 'spice', 'condiment', 'sauce'
+    'food', 'foods', 'alimento', 'alimentos', 'comida',
+    'snack', 'snacks', 'botana', 'botanas', 'merienda',
+    'candy', 'candies', 'dulce', 'dulces', 'caramelo', 'caramelos',
+    'chocolate', 'chocolates', 'cacao',
+    'cookie', 'cookies', 'galleta', 'galletas', 'biscuit', 'biscuits',
+    'coffee', 'cafe', 'café', 'tea', 'te', 'té',
+    'spice', 'spices', 'especia', 'especias', 'condiment', 'condimento',
+    'sauce', 'sauces', 'salsa', 'salsas',
+    'cereal', 'cereales', 'oatmeal', 'avena',
+    'nuts', 'nueces', 'almonds', 'almendras', 'peanuts', 'mani', 'maní',
+    'dried fruit', 'fruta seca', 'raisins', 'pasas',
+    'honey', 'miel', 'jam', 'mermelada', 'jelly',
+    'oil', 'aceite', 'olive oil', 'aceite oliva',
+    'pasta', 'noodles', 'fideos', 'rice', 'arroz',
+    'protein bar', 'energy bar', 'barra proteina', 'barra proteína'
   ],
   cosmeticos: [
-    'cosmetic', 'makeup', 'perfume', 'lotion', 'shampoo',
-    'cosmetico', 'maquillaje', 'cream', 'skincare', 'lipstick',
-    'mascara', 'foundation', 'serum', 'moisturizer'
+    'cosmetic', 'cosmetics', 'cosmetico', 'cosmético', 'cosmeticos', 'cosméticos',
+    'makeup', 'make up', 'maquillaje',
+    'perfume', 'perfumes', 'fragrance', 'fragrances', 'fragancia', 'fragancias', 'cologne',
+    'lotion', 'lotions', 'locion', 'loción', 'lociones',
+    'shampoo', 'champu', 'champú', 'conditioner', 'acondicionador',
+    'cream', 'crema', 'cremas', 'body cream', 'crema corporal',
+    'skincare', 'skin care', 'cuidado piel',
+    'lipstick', 'labial', 'lip gloss', 'brillo labial',
+    'mascara', 'rimel', 'eyeshadow', 'sombra ojos',
+    'foundation', 'base', 'concealer', 'corrector',
+    'serum', 'suero', 'moisturizer', 'hidratante', 'humectante',
+    'sunscreen', 'protector solar', 'sunblock', 'bloqueador',
+    'nail polish', 'esmalte', 'esmalte uñas',
+    'deodorant', 'desodorante', 'antiperspirant', 'antitranspirante',
+    'soap', 'jabon', 'jabón', 'body wash', 'gel baño',
+    'hair dye', 'tinte cabello', 'hair color', 'tinte pelo'
   ],
   libros: [
-    'book', 'novel', 'textbook', 'magazine', 'libro', 'manual',
-    'publication', 'comic', 'journal'
+    'book', 'books', 'libro', 'libros',
+    'novel', 'novels', 'novela', 'novelas',
+    'textbook', 'textbooks', 'texto escolar', 'libro texto',
+    'magazine', 'magazines', 'revista', 'revistas',
+    'manual', 'manuales',
+    'publication', 'publicacion', 'publicación',
+    'comic', 'comics', 'historieta', 'historietas', 'manga',
+    'journal', 'journals', 'diario', 'cuaderno',
+    'dictionary', 'diccionario', 'encyclopedia', 'enciclopedia',
+    'ebook', 'e-book', 'kindle book'
   ],
   juguetes: [
-    'toy', 'game', 'puzzle', 'juguete', 'juego', 'lego', 'doll',
-    'action figure', 'board game', 'plush'
+    'toy', 'toys', 'juguete', 'juguetes',
+    'game', 'games', 'juego', 'juegos',
+    'puzzle', 'puzzles', 'rompecabezas',
+    'lego', 'legos', 'building blocks', 'bloques',
+    'doll', 'dolls', 'muñeca', 'muñecas', 'muñeco', 'muñecos',
+    'action figure', 'action figures', 'figura accion', 'figura acción',
+    'board game', 'juego mesa', 'juego de mesa',
+    'plush', 'peluche', 'peluches', 'stuffed animal', 'stuffed toy',
+    'remote control', 'control remoto', 'rc car', 'carro control',
+    'barbie', 'hot wheels', 'nerf', 'playmobil', 'funko', 'funko pop',
+    'baby toy', 'juguete bebe', 'juguete bebé',
+    'educational toy', 'juguete educativo', 'learning toy'
   ],
   general: []
 };
