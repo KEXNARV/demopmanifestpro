@@ -23,7 +23,7 @@ const MAWB_PATTERN = /^\d{3}-\d{8}$/;
  * Patrón MAWB alternativo sin guión
  * Formato: 11 dígitos consecutivos que empiezan con prefijo de aerolínea conocido
  */
-const MAWB_PATTERN_NO_DASH = /^(057|074|105|129|139|172|180|205|220|230|232|235|238|239|244|245|257|279|293|297|315|316|369|403|412|509|537|540|555|566|589|607|618|632|695|729|738|744|755|784|826|831|880|906|932|988)\d{8}$/;
+const MAWB_PATTERN_NO_DASH = /^(057|074|105|129|139|172|180|205|220|230|232|235|238|239|244|245|257|279|293|297|315|316|369|403|412|509|537|540|555|566|589|607|618|632|695|729|738|744|755|784|826|831|880|932|988)\d{8}$/;
 
 /**
  * Prefijos IATA de aerolíneas comunes en carga
@@ -49,7 +49,7 @@ const AIRLINE_PREFIXES: Record<string, string> = {
   '279': 'American Airlines Cargo',
   '729': 'Copa Airlines',
   '880': 'Amazon Air',
-  '906': 'Skynet Worldwide Express',
+  // NOTA: 906 (Skynet) usa AWB como guía individual, no como MAWB
 };
 
 /**
