@@ -21,7 +21,7 @@ export const COMPANY_INFO = {
 export const DEVELOPER_INFO = {
   name: 'DemoPerez',
   year: 2025,
-  version: '1.0',
+  version: '1.5',
 };
 
 export const REGULATORY_INFO = {
