@@ -8,6 +8,22 @@ import { AnalizadorManifiesto, TipoColumna } from '../analizador/analizador-mani
 import { ClasificadorInteligente } from '../clasificacion/clasificadorInteligente';
 
 // ============================================
+// LOGGER SEGURO PARA WORKER (solo en desarrollo)
+// ============================================
+const isDev = typeof process !== 'undefined' ? process.env.NODE_ENV === 'development' : true;
+
+const devLog = (msg: string) => { if (isDev) console.log(msg); };
+const devWarn = (msg: string) => { if (isDev) console.warn(msg); };
+const devError = (msg: string) => { if (isDev) console.error(msg); };
+const devSection = (title: string) => { 
+  if (isDev) { 
+    console.log('═'.repeat(70)); 
+    console.log(title); 
+    console.log('═'.repeat(70)); 
+  } 
+};
+
+// ============================================
 // GENERADOR DE IDs
 // ============================================
 
@@ -145,8 +161,7 @@ async function procesarManifiesto(data: { archivo: ArrayBuffer; operador?: strin
   const { archivo, operador } = data;
   
   try {
-    console.log('🚀 INICIANDO PROCESAMIENTO AUTOMÁTICO');
-    console.log('═'.repeat(70));
+    devSection('🚀 INICIANDO PROCESAMIENTO AUTOMÁTICO');
     
     procesandoActivo = true;
     cancelarProcesamiento = false;
@@ -175,15 +190,10 @@ async function procesarManifiesto(data: { archivo: ArrayBuffer; operador?: strin
     enviarProgreso(10, `Archivo analizado. MAWB: ${analisis.mawb}`);
     
     if (analisis.advertencias.length > 0) {
-      console.warn('⚠️ Advertencias del análisis:');
-      analisis.advertencias.forEach(adv => console.warn('  ', adv));
+      devWarn('⚠️ Advertencias del análisis: ' + analisis.advertencias.join(', '));
     }
     
-    console.log('✅ Análisis completado:');
-    console.log('  MAWB:', analisis.mawb);
-    console.log('  Aerolínea:', analisis.aerolinea);
-    console.log('  Total filas:', analisis.totalFilas);
-    console.log('  Confianza:', (analisis.confianzaGeneral * 100).toFixed(0) + '%');
+    devLog(`✅ Análisis completado - MAWB: ${analisis.mawb}, Aerolínea: ${analisis.aerolinea}, Filas: ${analisis.totalFilas}, Confianza: ${(analisis.confianzaGeneral * 100).toFixed(0)}%`);
     
     // ═══════════════════════════════════════════════════════════
     // FASE 2: LEER DATOS DEL EXCEL (20-30%)
@@ -243,7 +253,7 @@ async function procesarManifiesto(data: { archivo: ArrayBuffer; operador?: strin
         } catch (error) {
           const mensaje = `Fila ${numeroFila}: ${error instanceof Error ? error.message : 'Error'}`;
           errores.push(mensaje);
-          console.error(mensaje);
+          devError(mensaje);
         }
       }
       
@@ -286,7 +296,7 @@ async function procesarManifiesto(data: { archivo: ArrayBuffer; operador?: strin
           try {
             return await calcularLiquidacionConHTS(paquete);
           } catch (error) {
-            console.error(`Error liquidando ${paquete.numeroGuia}:`, error);
+            devError(`Error liquidando ${paquete.numeroGuia}`);
             return crearLiquidacionError(paquete, error);
           }
         })

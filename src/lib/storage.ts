@@ -1,4 +1,5 @@
 import { ProcessingConfig, DEFAULT_CONFIG, ProcessingSummary, ProcessedBatch } from '@/types/manifest';
+import { devError } from '@/lib/logger';
 
 const CONFIG_KEY = 'manifest_processor_config';
 const MANIFESTS_KEY = 'processed_manifests';
@@ -26,7 +27,7 @@ export function saveConfig(config: ProcessingConfig): void {
   try {
     localStorage.setItem(CONFIG_KEY, JSON.stringify(config));
   } catch (error) {
-    console.error('Error saving config:', error);
+    devError('Error saving config');
   }
 }
 
@@ -43,7 +44,7 @@ export function loadConfig(): ProcessingConfig {
       };
     }
   } catch (error) {
-    console.error('Error loading config:', error);
+    devError('Error loading config');
   }
   return DEFAULT_CONFIG;
 }
@@ -64,7 +65,7 @@ export function getStoredManifests(): ManifestStorage[] {
       return JSON.parse(stored);
     }
   } catch (error) {
-    console.error('Error loading manifests:', error);
+    devError('Error loading manifests');
   }
   return [];
 }
@@ -81,7 +82,7 @@ export function saveManifest(manifest: ManifestStorage): void {
     }
     localStorage.setItem(MANIFESTS_KEY, JSON.stringify(manifests));
   } catch (error) {
-    console.error('Error saving manifest:', error);
+    devError('Error saving manifest');
   }
 }
 
@@ -91,7 +92,7 @@ export function deleteManifest(id: string): void {
     const filtered = manifests.filter(m => m.id !== id);
     localStorage.setItem(MANIFESTS_KEY, JSON.stringify(filtered));
   } catch (error) {
-    console.error('Error deleting manifest:', error);
+    devError('Error deleting manifest');
   }
 }
 

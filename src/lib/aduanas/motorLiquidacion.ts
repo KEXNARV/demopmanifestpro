@@ -19,6 +19,7 @@ import { verificarRestricciones } from './restriccionesData';
 import { CacheAranceles } from './cacheAranceles';
 import { CalculadorTarifas } from '@/lib/financiero/calculadorTarifas';
 import { GestorAuditoria } from '@/lib/auditoria/gestorAuditoria';
+import { devLog, devWarn, devError } from '@/lib/logger';
 
 // Generar ID único
 function generarId(): string {
@@ -128,9 +129,7 @@ export function normalizarValoresCIF(
       }
       
       if (valorSeguro === 0) {
-        console.log('Seguro declarado como $0 - Respetando declaración', {
-          razon: 'Seguro incluido en FOB o asumido por vendedor'
-        });
+        devLog('Seguro declarado como $0 - Respetando declaración (Seguro incluido en FOB o asumido por vendedor)');
       }
       
     } else {
@@ -140,12 +139,7 @@ export function normalizarValoresCIF(
       seguroTeorico = true;
       fundamentoLegal = 'Artículo 8.2 del Acuerdo de Valoración Aduanera OMC';
       
-      console.warn('Seguro teórico aplicado (campo ausente en factura)', {
-        valorFOB,
-        tasaTeorica: config.tasaSeguroTeorico,
-        seguroCalculado: valorSeguro,
-        fundamentoLegal
-      });
+      devWarn(`Seguro teórico aplicado (campo ausente en factura) - FOB: ${valorFOB}, Tasa: ${config.tasaSeguroTeorico}%, Calculado: ${valorSeguro}`);
     }
     
   } else {
@@ -157,20 +151,14 @@ export function normalizarValoresCIF(
     seguroTeorico = true;
     fundamentoLegal = 'Estimación sin factura comercial';
     
-    console.warn('Valores estimados (sin factura comercial)', {
-      valorCIFDeclarado: valorDeclarado,
-      valorFOBEstimado: valorFOB,
-      valorFleteEstimado: valorFlete,
-      valorSeguroEstimado: valorSeguro,
-      advertencia: 'Requiere validación con factura comercial real'
-    });
+    devWarn(`Valores estimados (sin factura comercial) - CIF: ${valorDeclarado}, FOB: ${valorFOB}, Flete: ${valorFlete}, Seguro: ${valorSeguro}`);
   }
   
   const valorCIF = redondear(valorFOB + valorFlete + valorSeguro);
   
   // Validación de coherencia
   if (valorCIF <= 0) {
-    console.error(`Valor CIF inválido: ${valorCIF}`);
+    devError(`Valor CIF inválido: ${valorCIF}`);
   }
   
   return {
@@ -372,8 +360,8 @@ function calcularCategoriaC(
   };
   
   // Corrección #10: Registrar en auditoría
-  GestorAuditoria.registrarCreacion(liquidacion, 'sistema').catch(err => {
-    console.error('Error registrando auditoría:', err);
+  GestorAuditoria.registrarCreacion(liquidacion, 'sistema').catch(() => {
+    devError('Error registrando auditoría');
   });
   
   return liquidacion;

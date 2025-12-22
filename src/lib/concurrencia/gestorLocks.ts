@@ -3,6 +3,8 @@
 // Previene procesamiento duplicado del mismo MAWB
 // ============================================
 
+import { devError } from '@/lib/logger';
+
 export interface ManifiestoLock {
   mawb: string;
   operador: string;
@@ -64,7 +66,7 @@ export class GestorLocks {
       const locksArray = Array.from(locks.entries());
       localStorage.setItem(LOCKS_KEY, JSON.stringify(locksArray));
     } catch (error) {
-      console.error('Error guardando locks:', error);
+      devError('Error guardando locks');
     }
   }
   

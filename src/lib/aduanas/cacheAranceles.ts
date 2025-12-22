@@ -5,6 +5,7 @@
 
 import { Arancel } from '@/types/aduanas';
 import { ARANCELES_PANAMA } from './arancelesData';
+import { devLog, devSuccess } from '@/lib/logger';
 
 /**
  * Caché singleton para búsquedas O(1) de aranceles
@@ -50,13 +51,8 @@ class CacheArancelesClass {
     
     const duracion = Date.now() - inicio;
     
-    console.log('✅ Caché de aranceles inicializado', {
-      totalAranceles: this.indiceCompleto.length,
-      palabrasClave: this.indicePorPalabraClave.size,
-      duracionMs: duracion
-    });
+    devSuccess(`Caché de aranceles inicializado - ${this.indiceCompleto.length} aranceles, ${this.indicePorPalabraClave.size} palabras clave, ${duracion}ms`);
   }
-  
   /**
    * Busca arancel por código HS - O(1)
    */
@@ -169,7 +165,7 @@ class CacheArancelesClass {
     this.indicePorPalabraClave.clear();
     this.indiceCompleto = [];
     this.inicializado = false;
-    console.log('Caché de aranceles invalidado');
+    devLog('Caché de aranceles invalidado');
   }
   
   /**

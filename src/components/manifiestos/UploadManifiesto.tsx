@@ -22,6 +22,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { toast } from '@/hooks/use-toast';
 import { GestorLocks } from '@/lib/concurrencia/gestorLocks';
 import { guardarManifiesto } from '@/lib/db/database';
+import { devLog, devError, devSuccess } from '@/lib/logger';
 
 interface ProgresoInfo {
   porcentaje: number;
@@ -156,7 +157,7 @@ export function UploadManifiesto({ onComplete, onError }: UploadManifiestoProps)
         }
         
         if (tipo === 'COMPLETADO') {
-          console.log('✅ Procesamiento completado:', payload);
+          devSuccess('Procesamiento completado');
           
           const mawb = payload.analisis?.mawb || `AUTO-${Date.now()}`;
           
@@ -255,7 +256,7 @@ export function UploadManifiesto({ onComplete, onError }: UploadManifiestoProps)
             }, 2000);
             
           } catch (error) {
-            console.error('Error guardando:', error);
+            devError('Error guardando datos');
             toast({
               variant: 'destructive',
               title: 'Error guardando datos',
@@ -273,7 +274,7 @@ export function UploadManifiesto({ onComplete, onError }: UploadManifiestoProps)
         }
         
         if (tipo === 'ERROR') {
-          console.error('Error del worker:', payload);
+          devError('Error del worker');
           
           setProgreso({ 
             porcentaje: 0, 
@@ -295,7 +296,7 @@ export function UploadManifiesto({ onComplete, onError }: UploadManifiestoProps)
       };
       
       worker.onerror = (error) => {
-        console.error('Error crítico del worker:', error);
+        devError('Error crítico del worker');
         
         setProgreso({ 
           porcentaje: 0, 
@@ -324,7 +325,7 @@ export function UploadManifiesto({ onComplete, onError }: UploadManifiestoProps)
       });
       
     } catch (error) {
-      console.error('Error:', error);
+      devError('Error en procesamiento');
       
       setProgreso({ 
         porcentaje: 0, 

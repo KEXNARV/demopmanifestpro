@@ -4,6 +4,8 @@
 // con soporte para múltiples stores
 // ============================================
 
+import { devLog, devError, devSuccess } from '@/lib/logger';
+
 const DB_NAME = 'pasarex_db';
 const DB_VERSION = 2;
 
@@ -34,13 +36,13 @@ export function initDB(): Promise<IDBDatabase> {
     const request = indexedDB.open(DB_NAME, DB_VERSION);
     
     request.onerror = () => {
-      console.error('Error abriendo IndexedDB:', request.error);
+      devError('Error abriendo IndexedDB');
       reject(request.error);
     };
     
     request.onsuccess = () => {
       dbInstance = request.result;
-      console.log('✅ IndexedDB inicializada correctamente');
+      devSuccess('IndexedDB inicializada correctamente');
       resolve(dbInstance);
     };
     
@@ -84,7 +86,7 @@ export function initDB(): Promise<IDBDatabase> {
         liqStore.createIndex('numeroGuia', 'numeroGuia', { unique: false });
       }
       
-      console.log('✅ Stores de IndexedDB creados/actualizados');
+      devSuccess('Stores de IndexedDB creados/actualizados');
     };
   });
   
@@ -327,7 +329,7 @@ export async function migrateFromLocalStorage(): Promise<{
     // Verificar si ya se migró
     const existingCount = await dbCount('manifiestos');
     if (existingCount > 0) {
-      console.log('IndexedDB ya contiene datos, omitiendo migración');
+      devLog('IndexedDB ya contiene datos, omitiendo migración');
       return result;
     }
     
@@ -368,7 +370,7 @@ export async function migrateFromLocalStorage(): Promise<{
     
     if (result.manifiestos > 0 || result.filas > 0) {
       result.migrated = true;
-      console.log('✅ Migración de localStorage a IndexedDB completada:', result);
+      devSuccess(`Migración de localStorage a IndexedDB completada: ${result.manifiestos} manifiestos, ${result.filas} filas`);
       
       // Limpiar localStorage después de migrar exitosamente
       // localStorage.removeItem('manifiestos_db');
@@ -377,7 +379,7 @@ export async function migrateFromLocalStorage(): Promise<{
     }
     
   } catch (error) {
-    console.error('Error durante migración:', error);
+    devError('Error durante migración');
   }
   
   return result;

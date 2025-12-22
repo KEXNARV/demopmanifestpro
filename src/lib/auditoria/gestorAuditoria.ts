@@ -6,6 +6,7 @@
 
 import { Liquidacion } from '@/types/aduanas';
 import { dbPut, dbGetAll, dbGetByIndex, dbDelete, initDB } from '@/lib/db/indexedDB';
+import { devLog, devError, devSuccess } from '@/lib/logger';
 
 /**
  * Registro de auditoría
@@ -48,9 +49,9 @@ async function inicializarCache(): Promise<void> {
     await initDB();
     cacheRegistros = await dbGetAll<RegistroAuditoria>('auditoria');
     cacheInicializado = true;
-    console.log(`✅ Caché de auditoría inicializado: ${cacheRegistros.length} registros`);
+    devSuccess(`Caché de auditoría inicializado: ${cacheRegistros.length} registros`);
   } catch (error) {
-    console.error('Error inicializando caché de auditoría:', error);
+    devError('Error inicializando caché de auditoría');
     cacheRegistros = [];
     cacheInicializado = true;
   }
