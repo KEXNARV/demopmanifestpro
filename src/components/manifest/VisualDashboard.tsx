@@ -41,6 +41,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ConsigneeDashboard } from './ConsigneeDashboard';
 import { LiquidacionDashboard } from './LiquidacionDashboard';
 import { FarmaceuticosResumen } from './FarmaceuticosResumen';
+import { FiltroSanitarioPanel } from './FiltroSanitarioPanel';
 import { generarReporteConsolidado } from '@/lib/aduanas/reporteConsolidado';
 import {
   PieChart,
