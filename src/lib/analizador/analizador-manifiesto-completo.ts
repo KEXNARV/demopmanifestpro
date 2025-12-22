@@ -13,18 +13,26 @@ interface ColumnaDetectada {
 }
 
 export type TipoColumna = 
-  | 'mawb'           // Master Air Waybill
-  | 'hawb'           // House Air Waybill / Guía Amazon
-  | 'consignatario'  // Nombre destinatario
-  | 'direccion'      // Dirección entrega
-  | 'ciudad'
-  | 'provincia'
-  | 'descripcion'    // Descripción producto
-  | 'peso'
-  | 'volumen'
-  | 'valor'
-  | 'cantidad'
-  | 'origen'
+  | 'mawb'                    // Master Air Waybill
+  | 'awb'                     // Air Waybill (AWB)
+  | 'localTracking'           // LOCAL TRACKING PROVIDER
+  | 'consignatario'           // MERCHANT CS NAME
+  | 'direccion'               // CONSIGNEE ADDRESS
+  | 'ciudad'                  // CITY
+  | 'descripcion'             // DESCRIPTION
+  | 'descripcionArancel'      // DESCRIPCION CODIGO ARANCEL
+  | 'peso'                    // WEIGHT
+  | 'valor'                   // VALUE
+  | 'cantidad'                // QUANTITY
+  | 'flete'                   // FREIGHT
+  | 'tipoDoc'                 // Tipo DOC
+  | 'dni'                     // DNI
+  | 'email'                   // EMAIL
+  | 'telefono'                // PHONE
+  | 'numeroInterno'           // INTERNAL NUMBER
+  | 'codigoArancelario'       // CODIGO ARANCELARIO
+  | 'consolidado'             // CONSOLIDADO
+  | 'codigoPostal'            // CODIGO POSTAL DESTINATARIO
   | 'desconocido';
 
 export interface ResultadoAnalisis {
@@ -68,74 +76,84 @@ const PREFIJOS_IATA: Record<string, { nombre: string; codigo: string }> = {
  */
 const PATRONES_DETECCION: Record<TipoColumna, string[]> = {
   mawb: [
-    // Términos estándar
+    // EXACTO primero - según imagen del usuario
     'mawb', 'master', 'master awb', 'master air waybill', 'master airway bill',
-    'awb master', 'awb number', 'air waybill', 'airway bill',
-    // Variaciones
+    'awb master', 'air waybill master',
     'guia master', 'guía master', 'numero master', 'número master',
     'master number', 'master no', 'master#', 'mawb#',
-    // Abreviaciones
     'mstr', 'mastr', 'm.a.w.b', 'maw'
   ],
   
-  hawb: [
-    // Términos estándar
-    'hawb', 'house', 'house awb', 'house air waybill',
-    // Amazon específico
+  awb: [
+    // EXACTO primero - según imagen del usuario
+    'awb', 'air waybill', 'airway bill', 'awb number',
+    'house awb', 'house air waybill', 'hawb',
+    'guia aerea', 'guía aérea', 'numero guia', 'número guía',
+    'guide', 'guide number', 'awb#', 'hawb#'
+  ],
+  
+  localTracking: [
+    // EXACTO primero - según imagen del usuario
+    'local tracking provider', 'local_tracking_provider', 'localtrackingprovider',
+    'local tracking', 'local_tracking',
     'amazon tracking', 'amazon shipment', 'amazon id', 'shipment id',
     'tracking', 'tracking number', 'track', 'track#',
-    // Guía general
-    'guia', 'guía', 'guia aerea', 'guía aérea', 'numero guia', 'número guía',
-    'guide', 'guide number', 'tracking id', 'package id',
-    // Abreviaciones
-    'track#', 'tracking#', 'guia#', 'hawb#', 'house#'
+    'guia', 'guía', 'numero guia', 'número guía',
+    'tracking id', 'package id', 'tracking#'
   ],
   
   consignatario: [
-    'consignee', 'consignatario', 'destinatario', 'recipient', 'receiver',
-    'consignee name', 'recipient name', 'customer', 'customer name',
+    // EXACTO primero - según imagen del usuario
+    'merchant cs name', 'merchant_cs_name', 'merchantcsname',
+    'merchant name', 'merchant',
+    'consignee', 'consignee name', 'consignatario', 'destinatario', 
+    'recipient', 'receiver', 'recipient name', 'customer', 'customer name',
     'nombre', 'name', 'full name', 'nombre completo', 'addressee',
     'ship to', 'shipto', 'deliver to', 'deliverto'
   ],
   
   direccion: [
+    // EXACTO primero - según imagen del usuario
+    'consignee address', 'consignee_address', 'consigneeaddress',
     'address', 'direccion', 'dirección', 'delivery address', 'shipping address',
-    'consignee address', 'recipient address', 'street', 'calle',
+    'recipient address', 'street', 'calle',
     'domicilio', 'ubicacion', 'ubicación', 'location',
     'ship to address', 'deliver to address', 'destination address'
   ],
   
   ciudad: [
+    // EXACTO primero
     'city', 'ciudad', 'town', 'municipality', 'municipio',
     'delivery city', 'ship to city'
   ],
   
-  provincia: [
-    'province', 'provincia', 'state', 'estado', 'region', 'región',
-    'department', 'departamento', 'county'
-  ],
-  
   descripcion: [
-    'description', 'descripcion', 'descripción', 'product', 'producto',
-    'item', 'articulo', 'artículo', 'merchandise', 'mercancia', 'mercancía',
+    // EXACTO primero - según imagen del usuario
+    'description', 'descripcion', 'descripción', 'desc',
+    'product', 'producto', 'item', 'articulo', 'artículo', 
+    'merchandise', 'mercancia', 'mercancía',
     'goods', 'commodity', 'content', 'contenido',
     'product description', 'item description', 'cargo description',
     'nature of goods', 'commodity description'
   ],
   
+  descripcionArancel: [
+    // EXACTO primero - según imagen del usuario
+    'descripcion codigo arancel', 'descripcion_codigo_arancel', 
+    'descripcioncodigoarancel', 'descripción código arancel',
+    'descripcion arancel', 'arancel descripcion',
+    'tariff description', 'hs description', 'hts description'
+  ],
+  
   peso: [
+    // EXACTO primero
     'weight', 'peso', 'gross weight', 'peso bruto', 'net weight', 'peso neto',
     'wt', 'kg', 'kilogramos', 'lb', 'lbs', 'libras', 'pounds',
     'weight kg', 'weight lb', 'peso kg', 'peso lb'
   ],
   
-  volumen: [
-    'volume', 'volumen', 'cbm', 'm3', 'cubic', 'cubico', 'cúbico',
-    'volumetric', 'volumétrico', 'volumetric weight', 'peso volumétrico',
-    'dimensional weight', 'dim weight'
-  ],
-  
   valor: [
+    // EXACTO primero - según imagen del usuario
     'value', 'valor', 'declared value', 'valor declarado',
     'customs value', 'valor aduanero', 'cif', 'cif value',
     'price', 'precio', 'amount', 'monto', 'total',
@@ -143,13 +161,70 @@ const PATRONES_DETECCION: Record<TipoColumna, string[]> = {
   ],
   
   cantidad: [
+    // EXACTO primero - según imagen del usuario
     'quantity', 'cantidad', 'qty', 'pieces', 'piezas', 'pcs',
     'units', 'unidades', 'count', 'number of pieces'
   ],
   
-  origen: [
-    'origin', 'origen', 'country of origin', 'pais de origen', 'país de origen',
-    'source', 'procedencia', 'from', 'ship from', 'departure'
+  flete: [
+    // EXACTO primero - según imagen del usuario
+    'freight', 'flete', 'shipping cost', 'costo envio', 'costo envío',
+    'shipping', 'envio', 'envío', 'freight cost', 'freight charge'
+  ],
+  
+  tipoDoc: [
+    // EXACTO primero - según imagen del usuario
+    'tipo doc', 'tipo_doc', 'tipodoc', 'tipo documento',
+    'document type', 'doc type', 'doctype'
+  ],
+  
+  dni: [
+    // EXACTO primero - según imagen del usuario
+    'dni', 'cedula', 'cédula', 'id', 'identification',
+    'numero documento', 'número documento', 'documento',
+    'passport', 'pasaporte', 'ruc', 'nit', 'ci', 'c.i.'
+  ],
+  
+  email: [
+    // EXACTO primero - según imagen del usuario
+    'email', 'e-mail', 'correo', 'correo electronico', 'correo electrónico',
+    'mail', 'electronic mail', 'email address'
+  ],
+  
+  telefono: [
+    // EXACTO primero - según imagen del usuario
+    'phone', 'telefono', 'teléfono', 'tel', 'telephone',
+    'mobile', 'movil', 'móvil', 'celular', 'cell',
+    'contact phone', 'phone number'
+  ],
+  
+  numeroInterno: [
+    // EXACTO primero - según imagen del usuario
+    'internal number', 'internal_number', 'internalnumber',
+    'numero interno', 'número interno', 'numero_interno',
+    'ref', 'reference', 'referencia', 'internal ref'
+  ],
+  
+  codigoArancelario: [
+    // EXACTO primero - según imagen del usuario
+    'codigo arancelario', 'código arancelario', 'codigo_arancelario',
+    'codigoarancelario', 'hs code', 'hts code', 'tariff code',
+    'arancel', 'codigo aduanero', 'código aduanero',
+    'harmonized code', 'customs code'
+  ],
+  
+  consolidado: [
+    // EXACTO primero - según imagen del usuario
+    'consolidado', 'consolidated', 'consol', 'consolidation',
+    'master consolidado', 'consolidation number'
+  ],
+  
+  codigoPostal: [
+    // EXACTO primero - según imagen del usuario
+    'codigo postal destinatario', 'código postal destinatario',
+    'codigo_postal_destinatario', 'codigopostaldestinatario',
+    'codigo postal', 'código postal', 'postal code', 'zip code',
+    'zip', 'postcode', 'cp'
   ],
   
   desconocido: []
@@ -244,10 +319,12 @@ export class AnalizadorManifiesto {
     const resultados = new Map<TipoColumna, ColumnaDetectada>();
     const columnasUsadas = new Set<number>();
     
-    // Prioridad de detección (críticas primero)
+    // Prioridad de detección (críticas primero) - según columnas del usuario
     const tiposPrioritarios: TipoColumna[] = [
-      'mawb', 'hawb', 'descripcion', 'consignatario', 'direccion',
-      'valor', 'peso', 'volumen', 'cantidad', 'ciudad', 'provincia', 'origen'
+      'mawb', 'awb', 'localTracking', 'consignatario', 'direccion', 'ciudad',
+      'descripcion', 'cantidad', 'peso', 'flete', 'valor', 'tipoDoc', 'dni',
+      'email', 'telefono', 'numeroInterno', 'codigoArancelario', 
+      'descripcionArancel', 'consolidado', 'codigoPostal'
     ];
     
     for (const tipo of tiposPrioritarios) {
@@ -354,7 +431,8 @@ export class AnalizadorManifiesto {
           if (/^\d{3}-\d{8}$/.test(valorStr)) coincidencias++;
           break;
           
-        case 'hawb':
+        case 'awb':
+        case 'localTracking':
           // Tracking: letras y números, longitud 8-30
           if (/^[A-Z0-9]{8,30}$/i.test(valorStr)) coincidencias++;
           break;
@@ -513,8 +591,8 @@ export class AnalizadorManifiesto {
     columnas: Map<TipoColumna, ColumnaDetectada>
   ): number {
     
-    const columnasCriticas: TipoColumna[] = ['hawb', 'descripcion'];
-    const columnasImportantes: TipoColumna[] = ['consignatario', 'direccion', 'valor'];
+    const columnasCriticas: TipoColumna[] = ['awb', 'localTracking', 'descripcion'];
+    const columnasImportantes: TipoColumna[] = ['consignatario', 'direccion', 'valor', 'codigoArancelario'];
     
     let puntaje = 0;
     let total = 0;
@@ -545,8 +623,8 @@ export class AnalizadorManifiesto {
       advertencias.push('⚠️ No se detectó MAWB en formato IATA estándar');
     }
     
-    if (!columnas.has('hawb')) {
-      advertencias.push('⚠️ No se detectó columna de guías/tracking');
+    if (!columnas.has('awb') && !columnas.has('localTracking')) {
+      advertencias.push('⚠️ No se detectó columna de AWB o LOCAL TRACKING PROVIDER');
     }
     
     if (!columnas.has('descripcion')) {

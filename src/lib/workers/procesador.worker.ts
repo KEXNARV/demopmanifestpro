@@ -400,10 +400,13 @@ function procesarFilaAutomatica(
     return String(fila[col.nombreOriginal] || '').trim();
   };
   
-  // 1. Obtener tracking (OBLIGATORIO)
-  const tracking = obtenerValor('hawb');
+  // 1. Obtener tracking (OBLIGATORIO) - primero AWB, luego LOCAL TRACKING
+  let tracking = obtenerValor('awb');
   if (!tracking) {
-    console.warn(`Fila ${numeroFila}: Sin tracking, omitiendo`);
+    tracking = obtenerValor('localTracking');
+  }
+  if (!tracking) {
+    console.warn(`Fila ${numeroFila}: Sin tracking (AWB o LOCAL TRACKING PROVIDER), omitiendo`);
     return null;
   }
   
@@ -444,13 +447,13 @@ function procesarFilaAutomatica(
     peso = Math.max(valor * 0.1, 0.5);
   }
   
-  // 5. Obtener volumen
-  let volumen = 0;
-  const volumenStr = obtenerValor('volumen').replace(/[^0-9.-]/g, '');
+  // 5. Obtener flete (FREIGHT)
+  let flete = 0;
+  const fleteStr = obtenerValor('flete').replace(/[^0-9.-]/g, '');
   try {
-    volumen = parseFloat(volumenStr) || 0;
+    flete = parseFloat(fleteStr) || 0;
   } catch {
-    volumen = 0;
+    flete = 0;
   }
   
   // 6. Obtener cantidad
@@ -465,11 +468,19 @@ function procesarFilaAutomatica(
   // 7. Clasificar producto usando ClasificadorInteligente
   const clasificacion = ClasificadorInteligente.clasificar(descripcion, valor);
   
-  // 8. Procesar consignatario
+  // 8. Procesar consignatario y datos adicionales
   const nombreConsignatario = obtenerValor('consignatario') || 'Sin nombre';
   const direccionEntrega = obtenerValor('direccion') || 'Sin dirección';
   const ciudad = obtenerValor('ciudad') || 'Panamá';
-  const provincia = obtenerValor('provincia') || 'Panamá';
+  const dni = obtenerValor('dni') || '';
+  const email = obtenerValor('email') || '';
+  const telefono = obtenerValor('telefono') || '';
+  const codigoArancelario = obtenerValor('codigoArancelario') || '';
+  const descripcionArancel = obtenerValor('descripcionArancel') || '';
+  const consolidado = obtenerValor('consolidado') || '';
+  const codigoPostal = obtenerValor('codigoPostal') || '';
+  const numeroInterno = obtenerValor('numeroInterno') || '';
+  const tipoDoc = obtenerValor('tipoDoc') || '';
   
   // 9. Crear paquete
   const paquete = {
@@ -485,11 +496,11 @@ function procesarFilaAutomatica(
     // Consignatario
     consignatario: {
       nombreCompleto: nombreConsignatario,
-      identificacion: '',
-      telefono: '',
-      email: '',
+      identificacion: dni,
+      telefono,
+      email,
       direccion: direccionEntrega,
-      tipoIdentificacion: 'sin_identificacion',
+      tipoIdentificacion: tipoDoc || 'sin_identificacion',
       cantidadPaquetes: 1
     },
     
@@ -497,16 +508,24 @@ function procesarFilaAutomatica(
     descripcion,
     valor,
     peso,
-    volumen,
+    flete,
     cantidad,
+    
+    // Código arancelario
+    codigoArancelario,
+    descripcionArancel,
     
     // Ubicación
     ubicacion: {
-      provincia,
       ciudad,
+      codigoPostal,
       direccionCompleta: direccionEntrega,
       confianza: 85
     },
+    
+    // Consolidado
+    consolidado,
+    numeroInterno,
     
     // Estado
     estado: 'recibido',
