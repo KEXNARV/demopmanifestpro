@@ -78,14 +78,15 @@ const PREFIJOS_IATA: Record<string, { nombre: string; codigo: string }> = {
 const PATRONES_DETECCION: Record<TipoColumna, string[]> = {
   mawb: [
     // EXACTO primero
-    'mawb', 'master', 'master awb', 'master air waybill', 'master airway bill',
+    'mawb', 'mwab', 'master', 'master awb', 'master air waybill', 'master airway bill',
     'awb master', 'air waybill master', 'guia master', 'guía master',
-    'numero master', 'número master', 'master number', 'master no', 'master#', 'mawb#',
-    'mstr', 'mastr', 'm.a.w.b', 'maw',
+    'numero master', 'número master', 'master number', 'master no', 'master#', 'mawb#', 'mwab#',
+    'mstr', 'mastr', 'm.a.w.b', 'maw', 'm.w.a.b',
     // Variaciones adicionales
     'master waybill', 'main awb', 'principal awb', 'awb principal',
     'guia maestra', 'guía maestra', 'no. master', 'numero mawb', 'número mawb',
-    'master bill', 'bill master', 'm awb', 'm-awb', 'mawb no', 'mawb number'
+    'master bill', 'bill master', 'm awb', 'm-awb', 'mawb no', 'mawb number',
+    'numero mwab', 'número mwab', 'mwab no', 'mwab number'
   ],
   
   awb: [
