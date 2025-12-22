@@ -32,6 +32,7 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { filterConsignees, formatConsolidatedForExport } from '@/lib/consigneeProcessor';
+import { ConsigneeCharts } from './ConsigneeCharts';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
@@ -252,6 +253,9 @@ export function ConsigneeDashboard({
           </div>
         </div>
       )}
+
+      {/* Visual Charts */}
+      <ConsigneeCharts consigneeMap={consigneeMap} stats={stats} />
 
       {/* Top Consignees */}
       <div className="card-elevated p-6">
