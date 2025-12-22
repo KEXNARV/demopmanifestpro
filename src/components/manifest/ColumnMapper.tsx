@@ -44,26 +44,53 @@ export function ColumnMapper({ headers, onMapping }: ColumnMapperProps) {
   // Auto-detect columns based on suggestions
   useEffect(() => {
     const autoMapping: Partial<ColumnMapping> = {};
-    
-    // Auto-detect required fields
-    REQUIRED_FIELDS.forEach(field => {
-      const matchedHeader = headers.find(header => 
-        field.suggestions.some(suggestion => 
-          header.toLowerCase().includes(suggestion.toLowerCase())
-        )
+
+    const normalize = (s: string) => s.toLowerCase().replace(/[_-]+/g, ' ').trim();
+    const isMawbLikeHeader = (header: string) => {
+      const h = normalize(header);
+      return /(^|\s)(mawb|mwab|master)(\s|$)/.test(h);
+    };
+    const awbBoundary = /(^|[^a-z0-9])awb([^a-z0-9]|$)/i;
+    const hawbBoundary = /(^|[^a-z0-9])hawb([^a-z0-9]|$)/i;
+
+    const findHeader = (field: (typeof REQUIRED_FIELDS)[number] | (typeof OPTIONAL_FIELDS)[number]) => {
+      // Regla especial: trackingNumber debe venir de AWB/H-AWB/Tracking, NO de MAWB
+      if (field.key === 'trackingNumber') {
+        const candidates = headers.filter((h) => !isMawbLikeHeader(h));
+
+        // Prioridades explícitas (si existe AWB, úsala)
+        const prioritized =
+          candidates.find((h) => hawbBoundary.test(h)) ||
+          candidates.find((h) => awbBoundary.test(h)) ||
+          candidates.find((h) => normalize(h).includes('tracking')) ||
+          candidates.find((h) => normalize(h).includes('guia') || normalize(h).includes('guía')) ||
+          candidates.find((h) => normalize(h).includes('package'));
+
+        if (prioritized) return prioritized;
+
+        // Fallback: matching simple, pero solo contra candidatos (no MAWB)
+        return candidates.find((header) =>
+          field.suggestions.some((suggestion) => normalize(header).includes(normalize(suggestion)))
+        );
+      }
+
+      // Default behavior
+      return headers.find((header) =>
+        field.suggestions.some((suggestion) => normalize(header).includes(normalize(suggestion)))
       );
+    };
+
+    // Auto-detect required fields
+    REQUIRED_FIELDS.forEach((field) => {
+      const matchedHeader = findHeader(field);
       if (matchedHeader) {
         autoMapping[field.key as keyof ColumnMapping] = matchedHeader;
       }
     });
 
     // Auto-detect optional fields
-    OPTIONAL_FIELDS.forEach(field => {
-      const matchedHeader = headers.find(header => 
-        field.suggestions.some(suggestion => 
-          header.toLowerCase().includes(suggestion.toLowerCase())
-        )
-      );
+    OPTIONAL_FIELDS.forEach((field) => {
+      const matchedHeader = findHeader(field);
       if (matchedHeader) {
         autoMapping[field.key as keyof ColumnMapping] = matchedHeader;
       }
