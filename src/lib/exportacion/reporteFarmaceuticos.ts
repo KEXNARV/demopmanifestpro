@@ -235,7 +235,7 @@ export function extraerProductosFarmaceuticos(
         // Ubicación
         provincia: paq.province || paq.detectedProvince || '',
         ciudad: paq.city || paq.detectedCity || '',
-        distrito: paq.district || paq.detectedDistrict || '',
+        distrito: paq.district || (paq as any).detectedDistrict || '',
         direccion: paq.address || '',
         codigoPostal: (paq as any).codigoPostal || '',
         
@@ -497,7 +497,7 @@ export async function generarReporteFarmaceuticos(
     
     controlados.forEach((p, idx) => {
       wsControlados.push([
-        idx + 1,
+        String(idx + 1),
         p.guiaAerea,
         p.consignatario,
         p.identificacion,
@@ -544,72 +544,6 @@ export async function generarReporteFarmaceuticos(
       primerProducto.email,
       `${primerProducto.ciudad}, ${primerProducto.direccion}`,
       String(productos.length),
-      `$${valorTotal.toFixed(2)}`,
-      descripciones
-    ]);
-  });
-  
-  const wsCons = XLSX.utils.aoa_to_sheet(wsConsignatarios);
-  wsCons['!cols'] = [
-    { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 25 },
-    { wch: 40 }, { wch: 10 }, { wch: 12 }, { wch: 60 }
-  ];
-  XLSX.utils.book_append_sheet(wb, wsCons, 'Por Consignatario');
-  
-  // ═══════════════════════════════════════════════════════
-  // GENERAR ARCHIVO
-  // ═══════════════════════════════════════════════════════
-  
-  const buffer = XLSX.write(wb, { 
-    bookType: 'xlsx', 
-    type: 'array',
-    compression: true
-  });
-  
-  return new Blob([buffer], {
-    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-  });
-}
-
-function formatearTipoProducto(tipo: string): string {
-  const nombres: Record<string, string> = {
-    'medicamento_general': 'Medicamento General',
-    'antibiotico': 'Antibiótico',
-    'psicotropico_controlado': '⚠️ Psicotrópico Controlado',
-    'opioide_controlado': '🔴 Opioide Controlado',
-    'antidiabetico': 'Antidiabético',
-    'cardiovascular': 'Cardiovascular',
-    'hormonal': 'Hormonal',
-    'dispositivo_medico': 'Dispositivo Médico'
-  };
-  return nombres[tipo] || tipo;
-}
-
-/**
- * Descarga el reporte de farmacéuticos
- */
-export async function descargarReporteFarmaceuticos(
-  paquetes: ManifestRow[],
-  liquidaciones: Liquidacion[],
-  mawb: string = 'SIN_MAWB'
-): Promise<void> {
-  
-  const blob = await generarReporteFarmaceuticos(paquetes, liquidaciones, mawb);
-  const fechaHoy = new Date().toISOString().split('T')[0];
-  const nombreArchivo = `Reporte_Farmaceuticos_MINSA_${mawb}_${fechaHoy}.xlsx`;
-  
-  saveAs(blob, nombreArchivo);
-}
-
-export default {
-  detectarProductoFarmaceutico,
-  extraerProductosFarmaceuticos,
-  generarReporteFarmaceuticos,
-  descargarReporteFarmaceuticos
-};
-      primerProducto.email,
-      `${primerProducto.ciudad}, ${primerProducto.direccion}`,
-      productos.length,
       `$${valorTotal.toFixed(2)}`,
       descripciones
     ]);
