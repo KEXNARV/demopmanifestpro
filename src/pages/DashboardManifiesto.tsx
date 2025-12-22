@@ -455,21 +455,19 @@ export default function DashboardManifiesto() {
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          {productosFarmaceuticos.length > 0 && (
-            <Button 
-              variant="outline" 
-              onClick={handleDescargarFarmaceuticos} 
-              disabled={exportandoFarma}
-              className="border-red-300 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
-            >
-              {exportandoFarma ? (
-                <div className="w-4 h-4 mr-2 border-2 border-current border-t-transparent rounded-full animate-spin" />
-              ) : (
-                <Pill className="mr-2 h-4 w-4" />
-              )}
-              Reporte MINSA ({productosFarmaceuticos.length})
-            </Button>
-          )}
+          <Button 
+            variant="outline" 
+            onClick={handleDescargarFarmaceuticos} 
+            disabled={exportandoFarma}
+            className="border-red-300 text-red-700 hover:bg-red-50 dark:border-red-800 dark:text-red-400 dark:hover:bg-red-950"
+          >
+            {exportandoFarma ? (
+              <div className="w-4 h-4 mr-2 border-2 border-current border-t-transparent rounded-full animate-spin" />
+            ) : (
+              <Pill className="mr-2 h-4 w-4" />
+            )}
+            Reporte MINSA {productosFarmaceuticos.length > 0 && `(${productosFarmaceuticos.length})`}
+          </Button>
           
           <Button onClick={handleDescargarExcel} disabled={exportando}>
             {exportando ? (
