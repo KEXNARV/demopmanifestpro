@@ -118,6 +118,39 @@ export const PRODUCTOS_REFERENCIA: ProductoReferencia[] = [
   { keywords: ['nike dunk', 'dunk low', 'dunk high'], nombreProducto: 'Nike Dunk', precioMinimo: 100, precioMaximo: 300, categoria: 'Calzado' },
 ];
 
+// Marketplaces/Fuentes confiables donde el valor NO es manipulado por el consignatario
+export const FUENTES_CONFIABLES: string[] = [
+  'amazon.com', 'amazon', 'amzn', 'amz',
+  'ebay.com', 'ebay',
+  'walmart.com', 'walmart',
+  'bestbuy.com', 'best buy', 'bestbuy',
+  'target.com', 'target',
+  'newegg.com', 'newegg',
+  'costco.com', 'costco',
+  'apple.com', 'apple store',
+  'b&h photo', 'bhphoto', 'b&h',
+  'aliexpress', 'alibaba',
+  'shein', 'temu',
+  'mercadolibre', 'mercado libre',
+  'wish.com', 'wish'
+];
+
+/**
+ * Detecta si el producto proviene de una fuente confiable (marketplace)
+ * donde el valor viene directamente del vendedor/plataforma
+ */
+function esFuenteConfiable(descripcion: string): { esConfiable: boolean; fuente: string | null } {
+  const descripcionLower = descripcion.toLowerCase();
+  
+  for (const fuente of FUENTES_CONFIABLES) {
+    if (descripcionLower.includes(fuente.toLowerCase())) {
+      return { esConfiable: true, fuente };
+    }
+  }
+  
+  return { esConfiable: false, fuente: null };
+}
+
 // Umbral de alerta: si el valor declarado es menor a este % del mínimo
 const UMBRAL_SUBVALUACION_CRITICA = 0.5; // 50%
 const UMBRAL_SUBVALUACION_SOSPECHOSA = 0.7; // 70%
@@ -128,6 +161,24 @@ const UMBRAL_SUBVALUACION_SOSPECHOSA = 0.7; // 70%
 export function analizarSubvaluacion(paquete: ManifestRow): ResultadoSubvaluacion {
   const descripcionLower = paquete.description?.toLowerCase() || '';
   const valorDeclarado = paquete.valueUSD || 0;
+  
+  // PRIMERO: Verificar si viene de fuente confiable (Amazon, eBay, etc.)
+  // El valor de estos marketplaces NO es manipulado por el consignatario
+  const { esConfiable, fuente } = esFuenteConfiable(descripcionLower);
+  
+  if (esConfiable) {
+    return {
+      paqueteId: paquete.id,
+      trackingNumber: paquete.trackingNumber,
+      descripcion: paquete.description,
+      valorDeclarado,
+      estado: 'OK',
+      nivelAlerta: 'info',
+      mensaje: `✅ Valor verificado - Fuente confiable: ${fuente?.toUpperCase()}. El precio viene directamente del marketplace.`,
+      accionRequerida: 'Ninguna - valor de marketplace confiable',
+      bloqueado: false
+    };
+  }
   
   // Buscar producto en la base de referencia
   let productoEncontrado: ProductoReferencia | null = null;
