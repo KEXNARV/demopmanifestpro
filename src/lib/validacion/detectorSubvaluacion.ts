@@ -227,9 +227,9 @@ export function analizarSubvaluacion(paquete: ManifestRow): ResultadoSubvaluacio
       precioReferenciaMax: productoEncontrado.precioMaximo,
       diferenciaPorcentaje,
       nivelAlerta: 'critical',
-      mensaje: `⚠️ POSIBLE SUBVALUACIÓN DETECTADA: ${productoEncontrado.nombreProducto} declarado a $${valorDeclarado.toFixed(2)} (precio mínimo mercado: $${productoEncontrado.precioMinimo})`,
-      accionRequerida: 'El valor declarado está muy por debajo del precio de mercado. Aduanas podría revaluar y multar. ¿Desea corregir o sustentar con comprobante bancario?',
-      bloqueado: true
+      mensaje: `⚠️ SOSPECHA DE SUBVALUACIÓN: ${productoEncontrado.nombreProducto} declarado a $${valorDeclarado.toFixed(2)} (referencia: $${productoEncontrado.precioMinimo} - $${productoEncontrado.precioMaximo})`,
+      accionRequerida: 'Revisar valor declarado - posible subvaluación',
+      bloqueado: false
     };
   }
   
