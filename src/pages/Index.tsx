@@ -6,6 +6,7 @@ import { DataPreview } from '@/components/manifest/DataPreview';
 import { ProcessingProgress } from '@/components/manifest/ProcessingProgress';
 import { VisualDashboard } from '@/components/manifest/VisualDashboard';
 import { ConfigPanel } from '@/components/manifest/ConfigPanel';
+import { ValidacionGuiasAlert, InfoGuiasVsMAWB } from '@/components/manifest/ValidacionGuiasAlert';
 import { 
   parseExcelFile, 
   mapDataToManifest, 
@@ -19,6 +20,7 @@ import {
   ColumnMapping,
   ProcessingWarning
 } from '@/types/manifest';
+import { ResultadoValidacionLote } from '@/lib/validacion/validadorGuias';
 import { toast } from 'sonner';
 
 type ProcessingStep = 'upload' | 'mapping' | 'preview' | 'processing' | 'results';
@@ -29,6 +31,7 @@ export default function Index() {
   const [rawData, setRawData] = useState<{ headers: string[]; data: Record<string, unknown>[] } | null>(null);
   const [mappedData, setMappedData] = useState<ManifestRow[]>([]);
   const [warnings, setWarnings] = useState<ProcessingWarning[]>([]);
+  const [validacionGuias, setValidacionGuias] = useState<ResultadoValidacionLote | null>(null);
   const [processingProgress, setProcessingProgress] = useState(0);
   const [result, setResult] = useState<ExtendedProcessingResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -66,12 +69,19 @@ export default function Index() {
   const handleMapping = useCallback((mapping: ColumnMapping) => {
     if (!rawData) return;
 
-    const { rows, warnings: mapWarnings } = mapDataToManifest(rawData.data, mapping);
+    const { rows, warnings: mapWarnings, validacionGuias: validacion } = mapDataToManifest(rawData.data, mapping);
     setMappedData(rows);
     setWarnings(mapWarnings);
+    setValidacionGuias(validacion);
     setStep('preview');
 
-    if (mapWarnings.length > 0) {
+    // Alertas según validación de guías
+    if (validacion.mawbsDetectados > 0) {
+      toast.error(
+        `⚠️ ALERTA: Se detectaron ${validacion.mawbsDetectados} MAWB(s) usados como guías individuales. Verifique la columna de tracking.`,
+        { duration: 8000 }
+      );
+    } else if (mapWarnings.length > 0) {
       toast.warning(`Se encontraron ${mapWarnings.length} advertencias`);
     }
   }, [rawData]);
@@ -107,6 +117,7 @@ export default function Index() {
     setRawData(null);
     setMappedData([]);
     setWarnings([]);
+    setValidacionGuias(null);
     setResult(null);
     setError(null);
     setProcessingProgress(0);
@@ -209,11 +220,18 @@ export default function Index() {
           )}
 
           {step === 'preview' && (
-            <DataPreview 
-              data={mappedData} 
-              warnings={warnings}
-              onConfirm={handleProcess} 
-            />
+            <div className="space-y-4">
+              {/* Alerta de validación de guías */}
+              {validacionGuias && (
+                <ValidacionGuiasAlert resultado={validacionGuias} />
+              )}
+              
+              <DataPreview 
+                data={mappedData} 
+                warnings={warnings}
+                onConfirm={handleProcess} 
+              />
+            </div>
           )}
 
           {step === 'processing' && (

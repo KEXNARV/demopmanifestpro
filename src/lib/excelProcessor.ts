@@ -23,6 +23,12 @@ import {
   formatConsolidatedForExport 
 } from '@/lib/consigneeProcessor';
 import { detectarUbicacion } from '@/lib/panamaGeography';
+import { 
+  validarGuiaIndividual, 
+  validarLoteGuias, 
+  esMAWB,
+  ResultadoValidacionLote 
+} from '@/lib/validacion/validadorGuias';
 
 export function parseExcelFile(file: File): Promise<{ headers: string[]; data: Record<string, unknown>[] }> {
   return new Promise((resolve, reject) => {
@@ -45,13 +51,20 @@ export function parseExcelFile(file: File): Promise<{ headers: string[]; data: R
   });
 }
 
+/**
+ * Mapea datos del Excel a filas de manifiesto
+ * 
+ * IMPORTANTE: El trackingNumber debe ser la guía INDIVIDUAL del paquete,
+ * NO el MAWB. Se valida automáticamente para prevenir errores.
+ */
 export function mapDataToManifest(
   data: Record<string, unknown>[],
   mapping: ColumnMapping
-): { rows: ManifestRow[]; warnings: ProcessingWarning[] } {
+): { rows: ManifestRow[]; warnings: ProcessingWarning[]; validacionGuias: ResultadoValidacionLote } {
   const rows: ManifestRow[] = [];
   const warnings: ProcessingWarning[] = [];
   const seenTrackingNumbers = new Set<string>();
+  const todasLasGuias: string[] = [];
 
   data.forEach((row, index) => {
     const trackingNumber = String(row[mapping.trackingNumber] || '').trim();
@@ -59,6 +72,11 @@ export function mapDataToManifest(
     const valueUSD = parseFloat(valueStr.replace(/[^0-9.-]/g, '')) || 0;
     const weightStr = String(row[mapping.weight] || '0');
     const weight = parseFloat(weightStr.replace(/[^0-9.-]/g, '')) || 0;
+
+    // Recolectar guías para validación en lote
+    if (trackingNumber) {
+      todasLasGuias.push(trackingNumber);
+    }
 
     // Check for duplicates
     if (trackingNumber && seenTrackingNumbers.has(trackingNumber)) {
@@ -78,6 +96,16 @@ export function mapDataToManifest(
         type: 'missing_value',
         message: `Fila ${index + 2}: Número de guía faltante`,
         rowIndex: index,
+      });
+    }
+
+    // Validar que no sea MAWB
+    if (trackingNumber && esMAWB(trackingNumber)) {
+      warnings.push({
+        type: 'invalid_format',
+        message: `Fila ${index + 2}: "${trackingNumber}" parece ser un MAWB, no una guía individual. Use la guía del paquete.`,
+        rowIndex: index,
+        trackingNumber,
       });
     }
 
@@ -119,7 +147,10 @@ export function mapDataToManifest(
     });
   });
 
-  return { rows, warnings };
+  // Validar lote de guías para detectar uso incorrecto de MAWB
+  const validacionGuias = validarLoteGuias(todasLasGuias);
+
+  return { rows, warnings, validacionGuias };
 }
 
 export function classifyRow(row: ManifestRow, config: ProcessingConfig): ManifestRow {
