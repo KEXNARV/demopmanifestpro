@@ -68,6 +68,7 @@ const PREFIJOS_IATA: Record<string, { nombre: string; codigo: string }> = {
   '876': { nombre: 'Amazon Prime Air', codigo: '3A' },
   '157': { nombre: 'Qatar Airways', codigo: 'QR' },
   '618': { nombre: 'Emirates', codigo: 'EK' },
+  '810': { nombre: 'Amerijet International', codigo: 'M6' },
   '906': { nombre: 'Skynet Worldwide Express', codigo: 'SN' }
 };
 

@@ -14,6 +14,7 @@ const AIRLINE_CODES: Record<string, string> = {
   '001': 'American Airlines Cargo',
   '176': 'Emirates SkyCargo',
   '406': 'Atlas Air',
+  '810': 'Amerijet International',
   '906': 'Skynet Worldwide Express',
 };
 
