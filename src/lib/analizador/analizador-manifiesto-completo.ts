@@ -67,8 +67,8 @@ const PREFIJOS_IATA: Record<string, { nombre: string; codigo: string }> = {
   '427': { nombre: 'DHL', codigo: 'DH' },
   '876': { nombre: 'Amazon Prime Air', codigo: '3A' },
   '157': { nombre: 'Qatar Airways', codigo: 'QR' },
-  '618': { nombre: 'Emirates', codigo: 'EK' }
-  // NOTA: 906 (Skynet) usa AWB como guía individual, no requiere detección MAWB
+  '618': { nombre: 'Emirates', codigo: 'EK' },
+  '906': { nombre: 'Skynet Worldwide Express', codigo: 'SN' }
 };
 
 /**
