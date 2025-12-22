@@ -40,6 +40,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ConsigneeDashboard } from './ConsigneeDashboard';
 import { LiquidacionDashboard } from './LiquidacionDashboard';
+import { FarmaceuticosResumen } from './FarmaceuticosResumen';
 import { generarReporteConsolidado } from '@/lib/aduanas/reporteConsolidado';
 import {
   PieChart,
@@ -935,50 +936,11 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
 
         {/* Pharma Tab */}
         <TabsContent value="pharma" className="space-y-6">
-          <div className="card-elevated p-6">
-            <h3 className="font-semibold text-foreground mb-4">Productos Farmacéuticos y Regulados</h3>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              <PharmaCard
-                icon={Pill}
-                label="Medicamentos"
-                count={pharmaStats.medication}
-                total={summary.totalRows}
-                color="red"
-              />
-              <PharmaCard
-                icon={Leaf}
-                label="Suplementos"
-                count={pharmaStats.supplements}
-                total={summary.totalRows}
-                color="green"
-              />
-              <PharmaCard
-                icon={Stethoscope}
-                label="Productos Médicos"
-                count={pharmaStats.medical}
-                total={summary.totalRows}
-                color="blue"
-              />
-              <PharmaCard
-                icon={PawPrint}
-                label="Veterinarios"
-                count={pharmaStats.veterinary}
-                total={summary.totalRows}
-                color="purple"
-              />
-            </div>
-            <div className="mt-6 p-4 bg-amber-50 border border-amber-200 rounded-lg">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
-                <div>
-                  <p className="font-medium text-amber-800">Total Productos Regulados: {totalFarma} ({((totalFarma / summary.totalRows) * 100).toFixed(1)}%)</p>
-                  <p className="text-sm text-amber-700 mt-1">
-                    Estos productos requieren trámites especiales para despacho aduanero.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <FarmaceuticosResumen
+            paquetes={allRows}
+            liquidaciones={liquidaciones}
+            mawb={mawbExportInfo.mawb}
+          />
         </TabsContent>
 
         {/* Consignees Tab */}

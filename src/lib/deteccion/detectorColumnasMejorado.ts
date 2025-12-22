@@ -38,6 +38,25 @@ const VARIACIONES_COLUMNAS: VariacionesColumna[] = [
       'label', 'label number', 'label_number',
       'barcode', 'bar code', 'bar_code',
       
+      // Amazon/E-commerce
+      'amazon tracking', 'amazon_tracking', 'amazon id', 'amazon_id',
+      'amazon order', 'amazon_order', 'amazon shipment', 'order id',
+      'order number', 'order_number', 'orderno', 'order_id',
+      'fulfillment id', 'fulfillment_id', 'shipment id', 'shipment_id',
+      
+      // Couriers internacionales
+      'usps tracking', 'usps_tracking', 'usps', 'usps no',
+      'fedex tracking', 'fedex_tracking', 'fedex', 'fedex no',
+      'ups tracking', 'ups_tracking', 'ups', 'ups no',
+      'dhl tracking', 'dhl_tracking', 'dhl', 'dhl no',
+      'tnt tracking', 'tnt_tracking', 'tnt', 'aramex',
+      
+      // Couriers locales Panamá
+      'mailbox', 'mail box', 'casillero', 'numero casillero',
+      'box number', 'box_number', 'boxnumber', 'locker',
+      'apartado', 'apartado postal', 'po box',
+      'factura courier', 'numero factura', 'invoice number',
+      
       // Español
       'guia', 'guía', 'numero guia', 'número guía', 'numero_guia',
       'guia aerea', 'guía aérea', 'guia_aerea',
@@ -64,13 +83,15 @@ const VARIACIONES_COLUMNAS: VariacionesColumna[] = [
       'receiver', 'receiver name', 'receiver_name', 'receivername',
       'recipient', 'recipient name', 'recipient_name', 'recipientname',
       'ship to', 'ship_to', 'shipto', 'ship to name',
-      'deliver to', 'deliver_to', 'deliverto',
+      'deliver to', 'deliver_to', 'deliverto', 'deliver name',
       'customer', 'customer name', 'customer_name', 'customername',
       'name', 'full name', 'full_name', 'fullname',
       'buyer', 'buyer name', 'buyer_name', 'buyername',
       'addressee', 'addressee name',
       'contact', 'contact name', 'contact_name',
       'person', 'person name',
+      'attn', 'attention', 'care of', 'c/o', 'a la atencion',
+      'recipient full name', 'shipping name',
       
       // Español
       'consignatario', 'nombre consignatario', 'nombre_consignatario',
@@ -81,7 +102,8 @@ const VARIACIONES_COLUMNAS: VariacionesColumna[] = [
       'comprador', 'nombre comprador',
       'persona', 'nombre persona',
       'contacto', 'nombre contacto',
-      'entregar a', 'entregar_a', 'para'
+      'entregar a', 'entregar_a', 'para',
+      'a nombre de', 'beneficiario', 'titular'
     ]
   },
   
@@ -222,6 +244,15 @@ const VARIACIONES_COLUMNAS: VariacionesColumna[] = [
       'cif', 'cif value', 'cif_value',
       'usd', 'usd value', 'value usd', 'value_usd',
       'dollar', 'dollars', 'dollar value',
+      // Campos adicionales de valor
+      'merchandise value', 'merchandise_value', 'merch value',
+      'item cost', 'item_cost', 'itemcost',
+      'declared amount', 'declared_amount',
+      'commercial value', 'commercial_value',
+      'insured value', 'insured_value', 'insurance value',
+      'purchase price', 'purchase_price',
+      'retail value', 'retail price', 'msrp',
+      'extended price', 'extended_price', 'line total',
       
       // Español
       'valor', 'valor declarado', 'valor_declarado',
@@ -234,7 +265,9 @@ const VARIACIONES_COLUMNAS: VariacionesColumna[] = [
       'valor factura', 'valor_factura',
       'valor fob', 'valor_fob',
       'valor cif', 'valor_cif',
-      'dolares', 'dólares', 'valor dolares', 'valor dólares'
+      'dolares', 'dólares', 'valor dolares', 'valor dólares',
+      'costo', 'costo unitario', 'precio mercancia',
+      'valor mercancia', 'valor_mercancia'
     ]
   },
   
@@ -255,6 +288,16 @@ const VARIACIONES_COLUMNAS: VariacionesColumna[] = [
       'kg', 'kgs', 'kilogram', 'kilograms',
       'lb', 'lbs', 'pound', 'pounds',
       'mass', 'package weight', 'package_weight',
+      // Campos adicionales de peso
+      'dimensional weight', 'dimensional_weight', 'dim weight',
+      'volumetric weight', 'volumetric_weight', 'vol weight',
+      'billable weight', 'billable_weight',
+      'charged weight', 'charged_weight',
+      'billed weight', 'billed_weight',
+      'shipping weight', 'shipping_weight',
+      'item weight', 'item_weight',
+      'unit weight', 'unit_weight',
+      'cube', 'cubed weight',
       
       // Español
       'peso', 'peso bruto', 'peso_bruto',
@@ -264,7 +307,10 @@ const VARIACIONES_COLUMNAS: VariacionesColumna[] = [
       'peso kg', 'peso_kg',
       'peso lb', 'peso_lb', 'peso libras',
       'kilogramos', 'kilos', 'kgs',
-      'libras', 'lbs'
+      'libras', 'lbs',
+      'peso dimensional', 'peso_dimensional',
+      'peso volumetrico', 'peso_volumetrico',
+      'peso facturado', 'peso_facturado'
     ]
   },
   

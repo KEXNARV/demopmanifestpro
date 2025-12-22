@@ -142,14 +142,42 @@ const PALABRAS_FARMACEUTICAS = [
   'controlled substance', 'sustancia controlada', 'narcotic', 'narcotico',
   'opioid', 'opioide', 'benzodiazepine', 'benzodiazepina',
   'stimulant', 'estimulante', 'sedative', 'sedante',
+  'barbiturate', 'barbiturico', 'amphetamine', 'anfetamina',
   
   // Equipos médicos que requieren registro
   'syringe', 'jeringa', 'needle', 'aguja', 'catheter', 'cateter',
   'lancet', 'lanceta', 'test strip', 'tira reactiva',
+  'oximeter', 'oximetro', 'stethoscope', 'estetoscopio',
+  'thermometer', 'termometro', 'blood pressure', 'tensiometro',
+  'glucometer', 'glucometro', 'nebulizer', 'nebulizador',
+  'cpap', 'bipap', 'oxygen concentrator', 'concentrador oxigeno',
   
   // Genéricos y marcas comunes
   'vitamina', 'vitamin', 'supplement', 'suplemento',
-  'health supplement', 'dietary supplement'
+  'health supplement', 'dietary supplement', 'multivitamin',
+  'protein powder', 'proteina', 'amino acid', 'aminoacido',
+  'probiotic', 'probiotico', 'prebiotic', 'prebiotico',
+  'omega', 'fish oil', 'aceite pescado', 'colageno', 'collagen',
+  
+  // Medicamentos específicos de Panamá / Latinoamérica
+  'tylenol', 'advil', 'motrin', 'benadryl', 'claritin',
+  'zyrtec', 'allegra', 'pepto', 'tums', 'mylanta',
+  'nexium', 'prilosec', 'zantac', 'pepcid',
+  'lipitor', 'crestor', 'zocor', 'simvastatin',
+  'synthroid', 'levothroid', 'cytomel',
+  'ambien', 'lunesta', 'sonata', 'restoril',
+  'xanax', 'valium', 'ativan', 'klonopin', 'librium',
+  'prozac', 'zoloft', 'paxil', 'lexapro', 'celexa',
+  'wellbutrin', 'effexor', 'cymbalta', 'pristiq',
+  'adderall', 'ritalin', 'concerta', 'vyvanse', 'strattera',
+  'vicodin', 'percocet', 'oxycontin', 'norco', 'dilaudid',
+  'suboxone', 'methadone', 'naloxone', 'narcan',
+  
+  // Cosméticos medicados / dermacéuticos
+  'retinol', 'tretinoin', 'retin-a', 'differin',
+  'benzoyl peroxide', 'salicylic acid', 'acido salicilico',
+  'hydroquinone', 'hidroquinona', 'minoxidil', 'rogaine',
+  'latisse', 'bimatoprost'
 ];
 
 /**
