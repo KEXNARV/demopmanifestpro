@@ -16,7 +16,13 @@ interface ColumnMapperProps {
 }
 
 const REQUIRED_FIELDS = [
-  { key: 'trackingNumber', label: 'Número de Guía', suggestions: ['tracking', 'guia', 'guide', 'awb', 'numero'], required: true },
+  { 
+    key: 'trackingNumber', 
+    label: 'Guía Individual del Paquete', 
+    suggestions: ['tracking', 'guia', 'awb', 'numero', 'house', 'hawb', 'paquete', 'package'],
+    required: true,
+    description: 'Ej: Amazon, FedEx, UPS (NO usar MAWB)'
+  },
   { key: 'description', label: 'Descripción', suggestions: ['description', 'descripcion', 'product', 'producto', 'item'], required: true },
   { key: 'valueUSD', label: 'Valor USD', suggestions: ['value', 'valor', 'price', 'precio', 'usd', 'amount'], required: true },
   { key: 'weight', label: 'Peso', suggestions: ['weight', 'peso', 'kg', 'lbs'], required: true },
@@ -81,9 +87,27 @@ export function ColumnMapper({ headers, onMapping }: ColumnMapperProps) {
   return (
     <div className="card-elevated p-6 animate-slide-up">
       <h3 className="text-lg font-semibold text-foreground mb-2">Mapear Columnas</h3>
-      <p className="text-sm text-muted-foreground mb-6">
+      <p className="text-sm text-muted-foreground mb-4">
         Selecciona las columnas del archivo que corresponden a cada campo requerido.
       </p>
+
+      {/* Important notice about tracking numbers */}
+      <div className="mb-6 p-4 rounded-lg bg-amber-500/10 border border-amber-500/30">
+        <div className="flex gap-3">
+          <div className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-500/20 flex items-center justify-center">
+            <span className="text-amber-600 text-xs font-bold">!</span>
+          </div>
+          <div>
+            <h4 className="text-sm font-semibold text-amber-700 dark:text-amber-400 mb-1">
+              Importante: Usar Guía Individual del Paquete
+            </h4>
+            <p className="text-xs text-amber-600/90 dark:text-amber-400/80">
+              El análisis de consignatarios, impuestos, valores y demás se realiza por la <strong>guía individual del paquete</strong> (AWB de Amazon, FedEx, UPS, etc.), 
+              <strong> NO por la guía aérea master (MAWB)</strong>. El MAWB solo identifica el envío consolidado, no los paquetes individuales.
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Required Fields */}
       <div className="mb-6">
@@ -100,6 +124,9 @@ export function ColumnMapper({ headers, onMapping }: ColumnMapperProps) {
                   <CheckCircle2 className="w-4 h-4 text-success" />
                 )}
               </label>
+              {'description' in field && field.description && (
+                <p className="text-xs text-muted-foreground -mt-1">{field.description}</p>
+              )}
               <Select
                 value={mapping[field.key as keyof ColumnMapping] || ''}
                 onValueChange={(value) => handleChange(field.key as keyof ColumnMapping, value)}
