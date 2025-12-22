@@ -58,15 +58,21 @@ export default function Historial() {
   } | null>(null);
   const [cargando, setCargando] = useState(true);
 
-  const cargarDatos = () => {
+  const cargarDatos = async () => {
     setCargando(true);
     try {
-      const data = obtenerManifiestos();
-      const stats = obtenerEstadisticas();
+      const data = await obtenerManifiestos();
+      const stats = await obtenerEstadisticas();
       setManifiestos(data.sort((a, b) => 
         new Date(b.fechaCreacion).getTime() - new Date(a.fechaCreacion).getTime()
       ));
-      setEstadisticas(stats);
+      setEstadisticas({
+        totalManifiestos: stats.totalManifiestos,
+        totalPaquetes: stats.totalPaquetes,
+        valorTotal: stats.valorTotal,
+        pesoTotal: stats.pesoTotal,
+        porEstado: stats.porEstado
+      });
     } catch (error) {
       toast.error('Error al cargar el historial');
     } finally {

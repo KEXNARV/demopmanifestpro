@@ -79,8 +79,8 @@ export default function DashboardManifiesto() {
     const cargarDatos = async () => {
       setCargando(true);
       try {
-        const man = obtenerManifiesto(manifiestoId);
-        const filas = obtenerFilasPorManifiesto(manifiestoId);
+        const man = await obtenerManifiesto(manifiestoId);
+        const filas = await obtenerFilasPorManifiesto(manifiestoId);
 
         if (!man) {
           toast({
