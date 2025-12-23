@@ -16,7 +16,7 @@ import {
   Package, DollarSign, Calculator, Receipt, 
   Download, AlertTriangle, Search, Filter,
   ChevronLeft, ChevronRight, ArrowLeft, FileSpreadsheet,
-  Plane, CheckCircle2, AlertCircle, TrendingUp, Pill
+  Plane, CheckCircle2, AlertCircle, TrendingUp, Pill, Barcode
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import * as XLSX from 'xlsx';
@@ -44,6 +44,8 @@ import {
   extraerProductosFarmaceuticos, 
   generarReporteFarmaceuticos 
 } from '@/lib/exportacion/reporteFarmaceuticos';
+import { GTINPanel } from '@/components/manifest/GTINPanel';
+import { extraerGTINsDeTexto } from '@/lib/gtin/gtinProcessor';
 
 // Colores para categorías aduaneras
 const COLORES_CATEGORIA: Record<string, string> = {
@@ -173,6 +175,15 @@ export default function DashboardManifiesto() {
   const loteA = useMemo(() => paquetes.filter(p => (p.valorUSD || 0) <= 100), [paquetes]);
   const loteB = useMemo(() => paquetes.filter(p => (p.valorUSD || 0) > 100), [paquetes]);
   const conRestricciones = useMemo(() => paquetes.filter(p => p.requierePermiso), [paquetes]);
+
+  // Descripciones para análisis GTIN
+  const descripciones = useMemo(() => paquetes.map(p => p.descripcion || ''), [paquetes]);
+  
+  // Conteo de GTINs encontrados
+  const gtinsEncontrados = useMemo(() => {
+    const todos = descripciones.flatMap(d => extraerGTINsDeTexto(d));
+    return todos.length;
+  }, [descripciones]);
   
   // Productos farmacéuticos
   const productosFarmaceuticos = useMemo(() => {
@@ -655,7 +666,7 @@ export default function DashboardManifiesto() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="loteA" className="w-full">
-            <TabsList className="grid w-full grid-cols-4 mb-4">
+            <TabsList className="grid w-full grid-cols-5 mb-4">
               <TabsTrigger value="loteA">
                 Lote A ({loteA.length})
               </TabsTrigger>
@@ -665,6 +676,10 @@ export default function DashboardManifiesto() {
               <TabsTrigger value="farmaceuticos" className="text-red-600 dark:text-red-400">
                 <Pill className="h-3 w-3 mr-1" />
                 MINSA ({productosFarmaceuticos.length})
+              </TabsTrigger>
+              <TabsTrigger value="gtin">
+                <Barcode className="h-3 w-3 mr-1" />
+                GTIN {gtinsEncontrados > 0 && `(${gtinsEncontrados})`}
               </TabsTrigger>
               <TabsTrigger value="restricciones">
                 Restricciones ({conRestricciones.length})
@@ -806,6 +821,10 @@ export default function DashboardManifiesto() {
                   Mostrando 30 de {productosFarmaceuticos.length} productos. Descarga el reporte MINSA para ver todos.
                 </p>
               )}
+            </TabsContent>
+
+            <TabsContent value="gtin">
+              <GTINPanel descripciones={descripciones} />
             </TabsContent>
 
             <TabsContent value="restricciones">
