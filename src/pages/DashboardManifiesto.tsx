@@ -45,7 +45,9 @@ import {
   generarReporteFarmaceuticos 
 } from '@/lib/exportacion/reporteFarmaceuticos';
 import { GTINPanel } from '@/components/manifest/GTINPanel';
+import { RevisionGTIN } from '@/components/manifest/RevisionGTIN';
 import { extraerGTINsDeTexto } from '@/lib/gtin/gtinProcessor';
+import { ManifestRow } from '@/types/manifest';
 
 // Colores para categorías aduaneras
 const COLORES_CATEGORIA: Record<string, string> = {
@@ -179,11 +181,56 @@ export default function DashboardManifiesto() {
   // Descripciones para análisis GTIN
   const descripciones = useMemo(() => paquetes.map(p => p.descripcion || ''), [paquetes]);
   
-  // Conteo de GTINs encontrados
+  // Convertir paquetes a ManifestRow para revisión GTIN
+  const [paquetesConGTIN, setPaquetesConGTIN] = useState<ManifestRow[]>([]);
+  
+  useEffect(() => {
+    // Analizar GTIN en cada paquete
+    const paquetesAnalizados = paquetes.map((p, idx) => {
+      const gtinInfos = extraerGTINsDeTexto(p.descripcion || '');
+      const gtinInvalidos = gtinInfos.filter(g => !g.valido);
+      const gtinValido = gtinInfos.length === 0 || gtinInvalidos.length === 0;
+      
+      return {
+        id: `row-${idx}`,
+        trackingNumber: p.tracking || '',
+        description: p.descripcion || '',
+        valueUSD: p.valorUSD || 0,
+        weight: p.peso || 0,
+        recipient: p.destinatario || '',
+        address: p.direccion || '',
+        originalRowIndex: idx,
+        gtinCodigos: gtinInfos.map(g => g.codigo),
+        gtinValido,
+        gtinErrores: gtinInvalidos.flatMap(g => g.errores),
+        gtinPaisOrigen: gtinInfos.find(g => g.paisOrigen)?.paisOrigen,
+        requiereRevisionGTIN: gtinInfos.length > 0 && !gtinValido,
+      } as ManifestRow;
+    });
+    setPaquetesConGTIN(paquetesAnalizados);
+  }, [paquetes]);
+  
+  // Conteo de GTINs encontrados y que requieren revisión
   const gtinsEncontrados = useMemo(() => {
-    const todos = descripciones.flatMap(d => extraerGTINsDeTexto(d));
-    return todos.length;
-  }, [descripciones]);
+    return paquetesConGTIN.filter(p => p.gtinCodigos && p.gtinCodigos.length > 0).length;
+  }, [paquetesConGTIN]);
+  
+  const gtinsConProblemas = useMemo(() => {
+    return paquetesConGTIN.filter(p => p.requiereRevisionGTIN).length;
+  }, [paquetesConGTIN]);
+  
+  // Handlers para revisión GTIN
+  const handleUpdateGTINRow = (rowId: string, updates: Partial<ManifestRow>) => {
+    setPaquetesConGTIN(prev => 
+      prev.map(row => row.id === rowId ? { ...row, ...updates } : row)
+    );
+  };
+  
+  const handleMarcarGTINRevisado = (rowId: string) => {
+    setPaquetesConGTIN(prev =>
+      prev.map(row => row.id === rowId ? { ...row, requiereRevisionGTIN: false } : row)
+    );
+  };
   
   // Productos farmacéuticos
   const productosFarmaceuticos = useMemo(() => {
@@ -666,7 +713,7 @@ export default function DashboardManifiesto() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="loteA" className="w-full">
-            <TabsList className="grid w-full grid-cols-5 mb-4">
+            <TabsList className="grid w-full grid-cols-6 mb-4">
               <TabsTrigger value="loteA">
                 Lote A ({loteA.length})
               </TabsTrigger>
@@ -680,6 +727,13 @@ export default function DashboardManifiesto() {
               <TabsTrigger value="gtin">
                 <Barcode className="h-3 w-3 mr-1" />
                 GTIN {gtinsEncontrados > 0 && `(${gtinsEncontrados})`}
+              </TabsTrigger>
+              <TabsTrigger 
+                value="gtin-revision" 
+                className={gtinsConProblemas > 0 ? "text-amber-600 dark:text-amber-400" : ""}
+              >
+                <AlertTriangle className="h-3 w-3 mr-1" />
+                Revisión GTIN {gtinsConProblemas > 0 && `(${gtinsConProblemas})`}
               </TabsTrigger>
               <TabsTrigger value="restricciones">
                 Restricciones ({conRestricciones.length})
@@ -825,6 +879,14 @@ export default function DashboardManifiesto() {
 
             <TabsContent value="gtin">
               <GTINPanel descripciones={descripciones} />
+            </TabsContent>
+
+            <TabsContent value="gtin-revision">
+              <RevisionGTIN 
+                rows={paquetesConGTIN}
+                onUpdateRow={handleUpdateGTINRow}
+                onMarcarRevisado={handleMarcarGTINRevisado}
+              />
             </TabsContent>
 
             <TabsContent value="restricciones">

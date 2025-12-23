@@ -29,6 +29,11 @@ import {
   esMAWB,
   ResultadoValidacionLote 
 } from '@/lib/validacion/validadorGuias';
+import { 
+  extraerGTINsDeTexto, 
+  validarGTIN, 
+  GTINInfo 
+} from '@/lib/gtin/gtinProcessor';
 
 export function parseExcelFile(file: File): Promise<{ headers: string[]; data: Record<string, unknown>[] }> {
   return new Promise((resolve, reject) => {
@@ -126,10 +131,31 @@ export function mapDataToManifest(
     const geoInput = [province, city, address].filter(Boolean).join(' ');
     const geoDetection = detectarUbicacion(geoInput);
 
+    // Validar y extraer códigos GTIN de la descripción
+    const descripcion = String(row[mapping.description] || '');
+    const gtinInfos = extraerGTINsDeTexto(descripcion);
+    const gtinCodigos = gtinInfos.map(g => g.codigo);
+    const gtinInvalidos = gtinInfos.filter(g => !g.valido);
+    const gtinValido = gtinInfos.length === 0 || gtinInvalidos.length === 0;
+    const gtinErrores = gtinInvalidos.flatMap(g => g.errores);
+    const gtinPaisOrigen = gtinInfos.find(g => g.paisOrigen)?.paisOrigen;
+    const requiereRevisionGTIN = gtinInfos.length > 0 && !gtinValido;
+
+    // Add GTIN warnings
+    if (requiereRevisionGTIN) {
+      warnings.push({
+        type: 'invalid_gtin',
+        message: `Fila ${index + 2}: Código(s) GTIN inválido(s) detectado(s): ${gtinInvalidos.map(g => g.codigo).join(', ')}`,
+        rowIndex: index,
+        trackingNumber,
+        gtinCodigo: gtinInvalidos[0]?.codigo
+      });
+    }
+
     rows.push({
       id: `row-${index}`,
       trackingNumber,
-      description: String(row[mapping.description] || ''),
+      description: descripcion,
       valueUSD,
       weight,
       recipient: String(row[mapping.recipient] || ''),
@@ -144,6 +170,12 @@ export function mapDataToManifest(
       phone: mapping.phone ? String(row[mapping.phone] || '') : undefined,
       identification: mapping.identification ? String(row[mapping.identification] || '') : undefined,
       originalRowIndex: index,
+      // GTIN fields
+      gtinCodigos: gtinCodigos.length > 0 ? gtinCodigos : undefined,
+      gtinValido,
+      gtinErrores: gtinErrores.length > 0 ? gtinErrores : undefined,
+      gtinPaisOrigen,
+      requiereRevisionGTIN,
     });
   });
 

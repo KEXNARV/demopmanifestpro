@@ -34,7 +34,13 @@ export interface ManifestRow {
   normalizedRecipient?: string;
   phone?: string;
   identification?: string;
-  [key: string]: string | number | undefined;
+  // GTIN validation fields
+  gtinCodigos?: string[];
+  gtinValido?: boolean;
+  gtinErrores?: string[];
+  gtinPaisOrigen?: string;
+  requiereRevisionGTIN?: boolean;
+  [key: string]: string | number | boolean | string[] | undefined;
 }
 
 export interface ProductCategory {
@@ -94,10 +100,11 @@ export interface ProcessingSummary {
 }
 
 export interface ProcessingWarning {
-  type: 'duplicate' | 'missing_value' | 'invalid_format';
+  type: 'duplicate' | 'missing_value' | 'invalid_format' | 'invalid_gtin';
   message: string;
   rowIndex?: number;
   trackingNumber?: string;
+  gtinCodigo?: string;
 }
 
 export interface ColumnMapping {
