@@ -8,6 +8,7 @@ import Index from "./pages/Index";
 import Historial from "./pages/Historial";
 import TestDeteccion from "./pages/TestDeteccion";
 import DashboardManifiesto from "./pages/DashboardManifiesto";
+import BuscadorAranceles from "./pages/BuscadorAranceles";
 import NotFound from "./pages/NotFound";
 import { ProtectorDatos } from "@/lib/seguridad/encriptacion";
 
@@ -47,6 +48,7 @@ const App = () => {
           <Route path="/historial" element={<Historial />} />
           <Route path="/test-deteccion" element={<TestDeteccion />} />
           <Route path="/dashboard/:manifiestoId" element={<DashboardManifiesto />} />
+          <Route path="/aranceles" element={<BuscadorAranceles />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>

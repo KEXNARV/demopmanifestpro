@@ -1,4 +1,6 @@
 import { useState, useCallback } from 'react';
+import { Link } from 'react-router-dom';
+import { Search } from 'lucide-react';
 import { Header } from '@/components/manifest/Header';
 import { FileUpload, MAWBInfo } from '@/components/manifest/FileUpload';
 import { ColumnMapper } from '@/components/manifest/ColumnMapper';
@@ -318,6 +320,17 @@ export default function Index() {
                   Obtén archivos separados por categoría listos para usar
                 </p>
               </div>
+            </div>
+            
+            {/* Link to Arancel Search */}
+            <div className="mt-8 text-center">
+              <Link 
+                to="/aranceles"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-blue-900 hover:bg-blue-800 text-white rounded-lg font-medium transition-colors shadow-md"
+              >
+                <Search className="h-5 w-5" />
+                Buscador de Aranceles de Panamá
+              </Link>
             </div>
           </div>
         )}
