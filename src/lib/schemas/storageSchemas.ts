@@ -95,3 +95,39 @@ export const StoredManifestBasicSchema = z.object({
   processedAt: z.string(),
   totalRows: z.number()
 });
+
+// ============================================
+// ESQUEMAS PARA OPERACIONES ATÓMICAS
+// ============================================
+
+export const ManifestRowSchema = z.object({
+  id: z.string().optional(),
+  tracking: z.string().optional(),
+  destinatario: z.string().optional(),
+  identificacion: z.string().optional(),
+  telefono: z.string().optional(),
+  direccion: z.string().optional(),
+  provincia: z.string().optional(),
+  descripcion: z.string().optional(),
+  valorUSD: z.number().optional(),
+  peso: z.number().optional()
+}).passthrough();
+
+export const LiquidacionSchema = z.object({
+  id: z.string().optional(),
+  tracking: z.string().optional(),
+  hsCode: z.string().optional(),
+  valorCIF: z.number(),
+  totalTributos: z.number(),
+  totalAPagar: z.number(),
+  categoriaAduanera: z.enum(['A', 'B', 'C', 'D']).optional(),
+  tieneRestricciones: z.boolean().optional(),
+  requiereRevisionManual: z.boolean().optional()
+}).passthrough();
+
+export const BackupDataSchema = z.object({
+  manifiestos: z.array(ManifestStorageSchema),
+  paquetes: z.array(z.tuple([z.string(), z.array(ManifestRowSchema)])),
+  liquidaciones: z.array(z.tuple([z.string(), z.array(LiquidacionSchema)])),
+  timestamp: z.string()
+});

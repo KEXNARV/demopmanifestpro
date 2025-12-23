@@ -6,6 +6,14 @@
 import { ManifestRow, ProcessedBatch, ProcessingSummary } from '@/types/manifest';
 import { Liquidacion, ResumenLiquidacion } from '@/types/aduanas';
 import { GestorLocks } from '@/lib/concurrencia/gestorLocks';
+import { safeJsonParse, safeJsonParseArray } from '@/lib/utils/safeJsonParse';
+import { 
+  ManifestStorageSchema, 
+  ManifestRowSchema, 
+  LiquidacionSchema,
+  BackupDataSchema 
+} from '@/lib/schemas/storageSchemas';
+import { z } from 'zod';
 
 // Storage keys
 const MANIFESTS_KEY = 'processed_manifests';
@@ -37,12 +45,12 @@ export interface ManifiestoCompleto {
 
 // Helper functions
 function getStoredManifests(): ManifestStorage[] {
-  try {
-    const stored = localStorage.getItem(MANIFESTS_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
+  const stored = localStorage.getItem(MANIFESTS_KEY);
+  const parsed = safeJsonParseArray(stored, ManifestStorageSchema);
+  // Filter out items missing required fields
+  return parsed.filter((m): m is ManifestStorage => 
+    typeof m.id === 'string' && typeof m.fileName === 'string'
+  );
 }
 
 function saveManifest(manifest: ManifestStorage): void {
@@ -60,11 +68,21 @@ function saveManifest(manifest: ManifestStorage): void {
  * Obtiene paquetes almacenados por manifiesto
  */
 function getPaquetesAlmacenados(): Map<string, ManifestRow[]> {
+  const stored = localStorage.getItem(PAQUETES_KEY);
+  if (!stored) return new Map();
+  
   try {
-    const stored = localStorage.getItem(PAQUETES_KEY);
-    if (!stored) return new Map();
-    const data = JSON.parse(stored) as [string, ManifestRow[]][];
-    return new Map(data);
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return new Map();
+    
+    // Validate each entry
+    const validEntries: [string, ManifestRow[]][] = [];
+    for (const entry of parsed) {
+      if (Array.isArray(entry) && entry.length === 2 && typeof entry[0] === 'string' && Array.isArray(entry[1])) {
+        validEntries.push([entry[0], entry[1] as ManifestRow[]]);
+      }
+    }
+    return new Map(validEntries);
   } catch {
     return new Map();
   }
@@ -74,11 +92,21 @@ function getPaquetesAlmacenados(): Map<string, ManifestRow[]> {
  * Obtiene liquidaciones almacenadas por manifiesto
  */
 function getLiquidacionesAlmacenadas(): Map<string, Liquidacion[]> {
+  const stored = localStorage.getItem(LIQUIDACIONES_KEY);
+  if (!stored) return new Map();
+  
   try {
-    const stored = localStorage.getItem(LIQUIDACIONES_KEY);
-    if (!stored) return new Map();
-    const data = JSON.parse(stored) as [string, Liquidacion[]][];
-    return new Map(data);
+    const parsed = JSON.parse(stored);
+    if (!Array.isArray(parsed)) return new Map();
+    
+    // Validate each entry
+    const validEntries: [string, Liquidacion[]][] = [];
+    for (const entry of parsed) {
+      if (Array.isArray(entry) && entry.length === 2 && typeof entry[0] === 'string' && Array.isArray(entry[1])) {
+        validEntries.push([entry[0], entry[1] as Liquidacion[]]);
+      }
+    }
+    return new Map(validEntries);
   } catch {
     return new Map();
   }
@@ -161,9 +189,9 @@ export async function guardarManifiestoCompleto(
     try {
       // Restaurar desde backup
       const backupStr = localStorage.getItem(BACKUP_KEY);
-      if (backupStr) {
-        const backupData = JSON.parse(backupStr);
-        
+      const backupData = safeJsonParse(backupStr, BackupDataSchema);
+      
+      if (backupData) {
         // Restaurar manifiestos
         localStorage.setItem('processed_manifests', JSON.stringify(backupData.manifiestos));
         
