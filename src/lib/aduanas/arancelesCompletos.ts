@@ -223,6 +223,74 @@ export const ARANCELES_COMPLETOS: Arancel[] = [
   { hsCode: "3926.40.00.00", descripcion: "Figuras decorativas (Adornos de plástico)", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Decoración", unidad: "kg" },
   { hsCode: "4420.10.00.00", descripcion: "Figuras decorativas (Adornos de madera)", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Decoración", unidad: "kg" },
   { hsCode: "8306.29.00.00", descripcion: "Marcos para fotografías (Portarretratos)", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Decoración", unidad: "kg" },
+  // Juguetes
+  { hsCode: "9503.00.20.00", descripcion: "Muñecas y muñecos (incluso vestidos)", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Juguetes", unidad: "u" },
+  { hsCode: "9503.00.30.00", descripcion: "Trenes eléctricos y sus accesorios (Juguetes)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Juguetes", unidad: "u" },
+  { hsCode: "9503.00.60.00", descripcion: "Rompecabezas (Puzzles) de cualquier material", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Juguetes", unidad: "u" },
+  { hsCode: "9503.00.49.00", descripcion: "Sets de construcción (tipo LEGO)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Juguetes", unidad: "kg" },
+  { hsCode: "9504.90.10.00", descripcion: "Juegos de mesa (Board games) y dados", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Juguetes", unidad: "u" },
+  // Deportes adicionales
+  { hsCode: "9506.51.00.00", descripcion: "Raquetas de tenis, bádminton o similares", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Deportes", unidad: "u" },
+  { hsCode: "9506.29.00.00", descripcion: "Tablas de surf y paddle board", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Deportes", unidad: "u" },
+  { hsCode: "9506.99.10.00", descripcion: "Monopatines (Skateboards)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Deportes", unidad: "u" },
+  { hsCode: "9506.99.99.00", descripcion: "Patines (Roller skates)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Deportes", unidad: "par" },
+  // Calzado adicional
+  { hsCode: "6403.40.00.00", descripcion: "Calzado de seguridad con puntera metálica", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Calzado", unidad: "par" },
+  { hsCode: "6402.20.00.00", descripcion: "Sandalias y chanclas de plástico", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Calzado", unidad: "par" },
+  { hsCode: "6403.59.00.00", descripcion: "Mocasines y zapatos de cuero casuales", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Calzado", unidad: "par" },
+  // Componentes de PC
+  { hsCode: "8473.30.00.00", descripcion: "Tarjetas Madre (Motherboards) para PC", daiPercent: 0, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Componentes PC", unidad: "u", notasAdicionales: "En Panamá, partes internas de PC pueden clasificarse como 'Partes y accesorios de máquinas' o 'Circuitos integrados'" },
+  { hsCode: "8473.30.00.00", descripcion: "Tarjetas Gráficas (Video Cards / GPU)", daiPercent: 0, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Componentes PC", unidad: "u", notasAdicionales: "En Panamá, partes internas de PC pueden clasificarse como 'Partes y accesorios de máquinas' o 'Circuitos integrados'" },
+  { hsCode: "8542.31.00.00", descripcion: "Procesadores (CPU) para computadoras", daiPercent: 0, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Componentes PC", unidad: "u" },
+  { hsCode: "8542.32.00.00", descripcion: "Memorias RAM", daiPercent: 0, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Componentes PC", unidad: "u" },
+  { hsCode: "8517.79.00.00", descripcion: "Pantallas de repuesto para celulares (Displays)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Repuestos", unidad: "u" },
+  // Cocina adicional
+  { hsCode: "8215.20.00.00", descripcion: "Juegos de cubiertos (Cucharas, tenedores)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Cocina", unidad: "kg" },
+  { hsCode: "7013.37.00.00", descripcion: "Vasos y copas de vidrio", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Cocina", unidad: "u" },
+  { hsCode: "6912.00.19.00", descripcion: "Vajillas de cerámica (Platos, tazas)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Cocina", unidad: "kg" },
+  { hsCode: "7615.10.00.00", descripcion: "Moldes para hornear (Aluminio/Metal)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Cocina", unidad: "kg" },
+  { hsCode: "3924.90.13.00", descripcion: "Loncheras escolares de plástico", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Escolar", unidad: "u" },
+  { hsCode: "4202.12.00.00", descripcion: "Loncheras de material textil", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Escolar", unidad: "u" },
+  // Partes de bicicleta
+  { hsCode: "8714.91.00.00", descripcion: "Cuadros y horquillas de bicicleta (Marcos)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Bicicletas", unidad: "u" },
+  { hsCode: "8714.93.00.00", descripcion: "Pedales y mecanismos de pedal para bici", daiPercent: 5, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Bicicletas", unidad: "kg" },
+  { hsCode: "8714.94.00.00", descripcion: "Frenos de bicicleta y sus partes", daiPercent: 5, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Bicicletas", unidad: "kg" },
+  { hsCode: "4013.20.00.00", descripcion: "Cámaras de caucho para bicicletas (Inner tubes)", daiPercent: 5, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Bicicletas", unidad: "u" },
+  // Seguridad
+  { hsCode: "6506.10.00.00", descripcion: "Cascos de seguridad (Moto y Ciclismo)", daiPercent: 5, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Seguridad", unidad: "u" },
+  // Partes de moto
+  { hsCode: "8714.10.90.00", descripcion: "Tubos de escape para motocicletas", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Motos", unidad: "u" },
+  { hsCode: "8714.10.10.00", descripcion: "Sillines (Asientos) para motocicletas", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Motos", unidad: "u" },
+  { hsCode: "4011.40.00.00", descripcion: "Neumáticos nuevos para motocicletas", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Motos", unidad: "u" },
+  // Óptica y protección
+  { hsCode: "9004.90.10.00", descripcion: "Gafas protectoras (Seguridad industrial/Deporte)", daiPercent: 5, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Seguridad", unidad: "u" },
+  { hsCode: "9005.10.00.00", descripcion: "Binoculares (Prismáticos)", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Óptica", unidad: "u" },
+  { hsCode: "3307.90.90.00", descripcion: "Solución para lentes de contacto", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Óptica", unidad: "kg" },
+  // Productos médicos exentos
+  { hsCode: "3005.10.00.00", descripcion: "Curitas y apósitos adhesivos", daiPercent: 0, iscPercent: 0, itbmsPercent: 0, requiresPermiso: false, categoria: "Médico", unidad: "kg" },
+  { hsCode: "3006.50.00.00", descripcion: "Botiquines de primeros auxilios equipados", daiPercent: 0, iscPercent: 0, itbmsPercent: 0, requiresPermiso: false, categoria: "Médico", unidad: "u" },
+  { hsCode: "9025.19.00.00", descripcion: "Termómetros digitales personales", daiPercent: 0, iscPercent: 0, itbmsPercent: 0, requiresPermiso: false, categoria: "Médico", unidad: "u" },
+  { hsCode: "9018.31.00.00", descripcion: "Jeringas (con o sin aguja)", daiPercent: 0, iscPercent: 0, itbmsPercent: 0, requiresPermiso: false, categoria: "Médico", unidad: "u" },
+  { hsCode: "2936.29.00.00", descripcion: "Vitamina C pura (Ácido ascórbico)", daiPercent: 0, iscPercent: 0, itbmsPercent: 0, requiresPermiso: false, categoria: "Suplementos", unidad: "kg" },
+  // Suplementos adicionales
+  { hsCode: "2106.90.99.00", descripcion: "Colágeno hidrolizado (Polvo)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Suplementos", unidad: "kg" },
+  { hsCode: "2106.90.99.00", descripcion: "Creatina (Suplemento deportivo)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Suplementos", unidad: "kg" },
+  // Hogar adicional
+  { hsCode: "9404.90.10.00", descripcion: "Almohadas y cojines (Espuma/Plumas)", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Hogar", unidad: "u" },
+  { hsCode: "6301.10.00.00", descripcion: "Mantas eléctricas", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Hogar", unidad: "u" },
+  // Camping
+  { hsCode: "6306.22.00.00", descripcion: "Tiendas de campaña (Camping)", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Camping", unidad: "u" },
+  { hsCode: "6306.90.00.00", descripcion: "Sacos de dormir (Sleeping bags)", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Camping", unidad: "u" },
+  // Mascotas
+  { hsCode: "4201.00.00.00", descripcion: "Correas y collares para mascotas", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Mascotas", unidad: "kg" },
+  { hsCode: "2309.10.00.00", descripcion: "Comida para perros o gatos (Bolsa venta al por menor)", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Mascotas", unidad: "kg" },
+  // Mercería
+  { hsCode: "9606.21.00.00", descripcion: "Botones (para ropa)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Mercería", unidad: "kg" },
+  { hsCode: "9607.11.00.00", descripcion: "Cremalleras (Zippers)", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Mercería", unidad: "kg" },
+  // Pesca
+  { hsCode: "5608.11.00.00", descripcion: "Redes de pesca confeccionadas", daiPercent: 5, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Pesca", unidad: "kg" },
+  // Tabaco/Vapers (requiere alerta sanitaria)
+  { hsCode: "9614.00.90.00", descripcion: "Cigarrillos electrónicos y Vapers", daiPercent: 50, iscPercent: 0, itbmsPercent: 10, requiresPermiso: true, categoria: "Tabaco", unidad: "u", notasAdicionales: "ALERTA: Estos productos están sujetos a regulaciones sanitarias adicionales en Panamá. Consulte con la Autoridad de Salud antes de importar." },
 ];
 
 // Obtener categorías únicas para filtros

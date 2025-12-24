@@ -1,13 +1,59 @@
 import { useState, useMemo } from 'react';
-import { Search, FileText, Info } from 'lucide-react';
+import { Search, FileText, Info, AlertTriangle, CheckCircle, Cpu } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { ARANCELES_COMPLETOS, expandirBusqueda } from '@/lib/aduanas/arancelesCompletos';
 import { Link } from 'react-router-dom';
 import { ImportadorAranceles } from '@/components/aranceles/ImportadorAranceles';
 import type { Arancel } from '@/types/aduanas';
+
+// Términos que requieren desambiguación
+const TERMINOS_AMBIGUOS: Record<string, { mensaje: string; opciones: string[] }> = {
+  "neumatico": { 
+    mensaje: "¿Qué tipo de neumático buscas?", 
+    opciones: ["Auto", "Moto", "Bicicleta"] 
+  },
+  "llanta": { 
+    mensaje: "¿Qué tipo de llanta buscas?", 
+    opciones: ["Auto", "Moto", "Bicicleta"] 
+  },
+  "freno": { 
+    mensaje: "¿Frenos para qué vehículo?", 
+    opciones: ["Auto", "Moto", "Bicicleta"] 
+  },
+};
+
+// Términos que muestran alertas especiales
+const ALERTAS_ESPECIALES: Record<string, { tipo: 'warning' | 'info'; titulo: string; mensaje: string }> = {
+  "vaper": { 
+    tipo: 'warning', 
+    titulo: 'Regulación Sanitaria', 
+    mensaje: 'Los cigarrillos electrónicos y vapers están sujetos a regulaciones sanitarias adicionales en Panamá. Consulte con la Autoridad Nacional de Salud (MINSA) antes de importar estos productos.' 
+  },
+  "cigarrillo electronico": { 
+    tipo: 'warning', 
+    titulo: 'Regulación Sanitaria', 
+    mensaje: 'Los cigarrillos electrónicos y vapers están sujetos a regulaciones sanitarias adicionales en Panamá. Consulte con la Autoridad Nacional de Salud (MINSA) antes de importar estos productos.' 
+  },
+  "gpu": { 
+    tipo: 'info', 
+    titulo: 'Nota sobre clasificación', 
+    mensaje: 'En Panamá, muchas partes internas de PC (como tarjetas gráficas, motherboards) pueden clasificarse bajo "Partes y accesorios de máquinas" o "Circuitos integrados". Consulte con un agente aduanal para la clasificación exacta.' 
+  },
+  "tarjeta de video": { 
+    tipo: 'info', 
+    titulo: 'Nota sobre clasificación', 
+    mensaje: 'En Panamá, muchas partes internas de PC (como tarjetas gráficas, motherboards) pueden clasificarse bajo "Partes y accesorios de máquinas" o "Circuitos integrados". Consulte con un agente aduanal para la clasificación exacta.' 
+  },
+  "motherboard": { 
+    tipo: 'info', 
+    titulo: 'Nota sobre clasificación', 
+    mensaje: 'En Panamá, muchas partes internas de PC (como tarjetas gráficas, motherboards) pueden clasificarse bajo "Partes y accesorios de máquinas" o "Circuitos integrados". Consulte con un agente aduanal para la clasificación exacta.' 
+  },
+};
 
 export default function BuscadorAranceles() {
   const [busqueda, setBusqueda] = useState('');
@@ -20,6 +66,32 @@ export default function BuscadorAranceles() {
   const handleImport = (nuevos: Arancel[]) => {
     setArancelesImportados(prev => [...prev, ...nuevos]);
   };
+
+  // Detectar si hay desambiguación necesaria
+  const desambiguacion = useMemo(() => {
+    if (!busqueda.trim()) return null;
+    const terminoNorm = busqueda.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    
+    for (const [key, value] of Object.entries(TERMINOS_AMBIGUOS)) {
+      if (terminoNorm.includes(key)) {
+        return value;
+      }
+    }
+    return null;
+  }, [busqueda]);
+
+  // Detectar alertas especiales
+  const alertaEspecial = useMemo(() => {
+    if (!busqueda.trim()) return null;
+    const terminoNorm = busqueda.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    
+    for (const [key, value] of Object.entries(ALERTAS_ESPECIALES)) {
+      if (terminoNorm.includes(key)) {
+        return value;
+      }
+    }
+    return null;
+  }, [busqueda]);
 
   const resultados = useMemo(() => {
     if (!busqueda.trim()) {
@@ -43,6 +115,18 @@ export default function BuscadorAranceles() {
   const formatearPorcentaje = (valor: number) => {
     if (valor === 0) return 'Exento';
     return `${valor}%`;
+  };
+
+  const esLibreDeImpuestos = (arancel: Arancel) => {
+    return arancel.daiPercent === 0 && arancel.itbmsPercent === 0;
+  };
+
+  const esComponentePC = (arancel: Arancel) => {
+    return arancel.categoria === 'Componentes PC';
+  };
+
+  const handleOpcionDesambiguacion = (opcion: string) => {
+    setBusqueda(prev => `${prev} ${opcion}`);
   };
 
   return (
@@ -76,7 +160,7 @@ export default function BuscadorAranceles() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         {/* Search Section */}
-        <Card className="mb-8 border-0 shadow-xl bg-white">
+        <Card className="mb-6 border-0 shadow-xl bg-white">
           <CardContent className="pt-8 pb-8">
             <div className="max-w-3xl mx-auto">
               <div className="text-center mb-6">
@@ -84,7 +168,7 @@ export default function BuscadorAranceles() {
                   Consulta de Códigos Arancelarios
                 </h2>
                 <p className="text-slate-500">
-                  Busque por código arancelario (ej. "0901") o por descripción (ej. "café")
+                  Busque por código arancelario (ej. "0901") o por descripción (ej. "café", "GPU", "Air Fryer")
                 </p>
               </div>
               
@@ -112,6 +196,47 @@ export default function BuscadorAranceles() {
           </CardContent>
         </Card>
 
+        {/* Desambiguación */}
+        {desambiguacion && (
+          <Card className="mb-4 border-blue-200 bg-blue-50">
+            <CardContent className="py-4">
+              <div className="flex items-center gap-4">
+                <Info className="h-5 w-5 text-blue-600" />
+                <span className="text-blue-800 font-medium">{desambiguacion.mensaje}</span>
+                <div className="flex gap-2">
+                  {desambiguacion.opciones.map((opcion) => (
+                    <Badge 
+                      key={opcion}
+                      variant="outline" 
+                      className="cursor-pointer hover:bg-blue-100 border-blue-300 text-blue-700"
+                      onClick={() => handleOpcionDesambiguacion(opcion)}
+                    >
+                      {opcion}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Alertas especiales */}
+        {alertaEspecial && (
+          <Alert className={`mb-4 ${alertaEspecial.tipo === 'warning' ? 'border-amber-500 bg-amber-50' : 'border-blue-500 bg-blue-50'}`}>
+            {alertaEspecial.tipo === 'warning' ? (
+              <AlertTriangle className="h-4 w-4 text-amber-600" />
+            ) : (
+              <Cpu className="h-4 w-4 text-blue-600" />
+            )}
+            <AlertTitle className={alertaEspecial.tipo === 'warning' ? 'text-amber-800' : 'text-blue-800'}>
+              {alertaEspecial.titulo}
+            </AlertTitle>
+            <AlertDescription className={alertaEspecial.tipo === 'warning' ? 'text-amber-700' : 'text-blue-700'}>
+              {alertaEspecial.mensaje}
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Results Table */}
         <Card className="border-0 shadow-xl bg-white overflow-hidden">
           <CardHeader className="bg-slate-50 border-b">
@@ -129,7 +254,7 @@ export default function BuscadorAranceles() {
                     <TableHead className="font-bold text-slate-700 text-center w-[100px]">DAI</TableHead>
                     <TableHead className="font-bold text-slate-700 text-center w-[100px]">ITBMS</TableHead>
                     <TableHead className="font-bold text-slate-700 text-center w-[100px]">Unidad</TableHead>
-                    <TableHead className="font-bold text-slate-700 w-[120px]">Categoría</TableHead>
+                    <TableHead className="font-bold text-slate-700 w-[150px]">Estado</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -146,19 +271,33 @@ export default function BuscadorAranceles() {
                   ) : (
                     resultados.map((arancel, index) => (
                       <TableRow 
-                        key={arancel.hsCode} 
-                        className={index % 2 === 0 ? 'bg-white' : 'bg-slate-50'}
+                        key={`${arancel.hsCode}-${index}`} 
+                        className={`${index % 2 === 0 ? 'bg-white' : 'bg-slate-50'} ${esLibreDeImpuestos(arancel) ? 'bg-green-50/50' : ''}`}
                       >
                         <TableCell className="font-mono font-medium text-blue-700">
                           {arancel.hsCode}
                         </TableCell>
                         <TableCell className="text-slate-700">
-                          {arancel.descripcion}
-                          {arancel.requiresPermiso && (
-                            <Badge variant="outline" className="ml-2 text-xs border-amber-500 text-amber-600">
-                              Requiere Permiso
-                            </Badge>
-                          )}
+                          <div className="space-y-1">
+                            <div className="flex items-start gap-2">
+                              <span>{arancel.descripcion}</span>
+                              {arancel.requiresPermiso && (
+                                <Badge variant="outline" className="text-xs border-amber-500 text-amber-600 shrink-0">
+                                  Requiere Permiso
+                                </Badge>
+                              )}
+                            </div>
+                            {esComponentePC(arancel) && (
+                              <p className="text-xs text-blue-600 italic">
+                                Nota: En Panamá puede clasificarse como "Partes y accesorios" o "Circuitos integrados"
+                              </p>
+                            )}
+                            {arancel.notasAdicionales && !esComponentePC(arancel) && (
+                              <p className="text-xs text-amber-600 italic">
+                                {arancel.notasAdicionales}
+                              </p>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge 
@@ -180,9 +319,16 @@ export default function BuscadorAranceles() {
                           {arancel.unidad}
                         </TableCell>
                         <TableCell>
-                          <Badge variant="outline" className="text-xs">
-                            {arancel.categoria || 'General'}
-                          </Badge>
+                          {esLibreDeImpuestos(arancel) ? (
+                            <Badge className="bg-green-500 hover:bg-green-600 text-white gap-1">
+                              <CheckCircle className="h-3 w-3" />
+                              Libre de Impuestos
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs">
+                              {arancel.categoria || 'General'}
+                            </Badge>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))
