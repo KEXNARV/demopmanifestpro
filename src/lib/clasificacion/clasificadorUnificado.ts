@@ -3,7 +3,13 @@
 // Aplica AMBAS clasificaciones de forma coordinada:
 // - Clasificación de Producto (para organización y permisos)
 // - Clasificación Aduanera (para liquidación fiscal)
+// CORRECCIÓN H01: Umbrales centralizados desde configuración
 // ============================================
+
+import { 
+  ConfiguracionLiquidacion, 
+  DEFAULT_CONFIG_LIQUIDACION 
+} from '@/types/aduanas';
 
 export type CategoriaProducto = 
   | 'medicamentos'
@@ -27,6 +33,9 @@ export interface ClasificacionResult {
   requierePermiso: boolean;
   autoridad?: string;
   descripcionCategoria: string;
+  // NUEVO: Trazabilidad de la clasificación
+  reglasAplicadas: string[];
+  umbralAplicado?: number;
 }
 
 // Base de datos de palabras clave por categoría de producto
@@ -264,30 +273,41 @@ export class ClasificadorUnificado {
   
   /**
    * Clasifica un paquete aplicando AMBOS sistemas
+   * CORRECCIÓN H01: Recibe configuración parametrizable
    */
   static clasificar(
     descripcion: string,
-    valor: number
+    valor: number,
+    config: ConfiguracionLiquidacion = DEFAULT_CONFIG_LIQUIDACION
   ): ClasificacionResult {
     
     const descLower = descripcion.toLowerCase();
     const esDocumento = this.esDocumento(descLower);
+    const reglasAplicadas: string[] = [];
     
     // PASO 1: Clasificación de Producto
     const categoriaProducto = this.clasificarPorProducto(descLower);
+    reglasAplicadas.push(`Producto: ${categoriaProducto}`);
     
-    // PASO 2: Clasificación Aduanera (INDEPENDIENTE)
-    const { categoriaAduanera, descripcionCategoria } = this.clasificarPorAduanas(valor, esDocumento);
+    // PASO 2: Clasificación Aduanera (usando config centralizada)
+    const { categoriaAduanera, descripcionCategoria, umbralAplicado, regla } = 
+      this.clasificarPorAduanas(valor, esDocumento, config);
+    reglasAplicadas.push(regla);
     
     // PASO 3: Determinar si requiere permiso
     const { requierePermiso, autoridad } = this.determinarPermisos(categoriaProducto);
+    if (requierePermiso) {
+      reglasAplicadas.push(`Permiso requerido: ${autoridad}`);
+    }
     
     return {
       categoriaProducto,
       categoriaAduanera,
       requierePermiso,
       autoridad,
-      descripcionCategoria
+      descripcionCategoria,
+      reglasAplicadas,
+      umbralAplicado
     };
   }
   
@@ -329,40 +349,55 @@ export class ClasificadorUnificado {
   
   /**
    * Clasificación aduanera (para liquidación)
+   * CORRECCIÓN H01: Usa umbrales desde configuración centralizada
    */
   private static clasificarPorAduanas(
     valor: number,
-    esDocumento: boolean
-  ): { categoriaAduanera: CategoriaAduanera; descripcionCategoria: string } {
+    esDocumento: boolean,
+    config: ConfiguracionLiquidacion
+  ): { 
+    categoriaAduanera: CategoriaAduanera; 
+    descripcionCategoria: string;
+    umbralAplicado?: number;
+    regla: string;
+  } {
+    
+    const { umbralDeMinimis, umbralCorredorObligatorio } = config;
     
     // CATEGORÍA A: Documentos (sin valor comercial)
     if (esDocumento) {
       return { 
         categoriaAduanera: 'A', 
-        descripcionCategoria: 'Documentos - Exento' 
+        descripcionCategoria: 'Documentos - Exento',
+        regla: 'Regla: Documento detectado → Categoría A'
       };
     }
     
-    // CATEGORÍA B: De Minimis (≤ $100)
-    if (valor <= 100.00) {
+    // CATEGORÍA B: De Minimis (≤ umbral configurable)
+    if (valor <= umbralDeMinimis) {
       return { 
         categoriaAduanera: 'B', 
-        descripcionCategoria: 'De Minimis (≤ $100) - Exento' 
+        descripcionCategoria: `De Minimis (≤ $${umbralDeMinimis}) - Exento`,
+        umbralAplicado: umbralDeMinimis,
+        regla: `Regla: Valor $${valor.toFixed(2)} ≤ umbral $${umbralDeMinimis} → Categoría B`
       };
     }
     
-    // CATEGORÍA D: Alto Valor (≥ $2,000) - Requiere corredor
-    if (valor >= 2000.00) {
+    // CATEGORÍA D: Alto Valor (≥ umbral configurable)
+    if (valor >= umbralCorredorObligatorio) {
       return { 
         categoriaAduanera: 'D', 
-        descripcionCategoria: 'Alto Valor (≥ $2,000) - Requiere Corredor' 
+        descripcionCategoria: `Alto Valor (≥ $${umbralCorredorObligatorio}) - Requiere Corredor`,
+        umbralAplicado: umbralCorredorObligatorio,
+        regla: `Regla: Valor $${valor.toFixed(2)} ≥ umbral $${umbralCorredorObligatorio} → Categoría D`
       };
     }
     
-    // CATEGORÍA C: Bajo Valor ($100 < valor < $2,000)
+    // CATEGORÍA C: Bajo Valor (entre umbrales)
     return { 
       categoriaAduanera: 'C', 
-      descripcionCategoria: 'Bajo Valor - Liquidación Simplificada' 
+      descripcionCategoria: `Bajo Valor ($${umbralDeMinimis} < valor < $${umbralCorredorObligatorio})`,
+      regla: `Regla: Valor $${valor.toFixed(2)} entre umbrales → Categoría C`
     };
   }
   
