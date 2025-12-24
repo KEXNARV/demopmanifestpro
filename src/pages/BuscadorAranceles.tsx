@@ -21,6 +21,7 @@ import {
 } from '@/lib/clasificacion/fuzzyMatcher';
 import { Link } from 'react-router-dom';
 import { ImportadorAranceles } from '@/components/aranceles/ImportadorAranceles';
+import { CalculadoraLandedCost } from '@/components/aranceles/CalculadoraLandedCost';
 import type { Arancel } from '@/types/aduanas';
 
 // Términos que requieren desambiguación
@@ -435,6 +436,11 @@ export default function BuscadorAranceles() {
                           <span className="text-xs text-slate-500">Unidad</span>
                           <p className="font-bold text-lg">{selectedArancel.unidad}</p>
                         </div>
+                      </div>
+
+                      {/* Botón Calcular Impuestos (AWB) */}
+                      <div className="pt-3 border-t border-blue-200">
+                        <CalculadoraLandedCost arancel={selectedArancel} />
                       </div>
                     </div>
                   </CardContent>
