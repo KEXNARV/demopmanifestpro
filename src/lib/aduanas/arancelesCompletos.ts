@@ -418,18 +418,40 @@ export const SINONIMOS_BUSQUEDA: Record<string, string[]> = {
   "silla gamer": ["gaming chair", "silla gaming", "silla para juegos"],
   "gaming chair": ["silla gamer", "silla gaming"],
   
-  // Tecnología Maker
-  "impresora 3d": ["3d printer", "printer 3d", "fabricacion aditiva", "ender"],
-  "3d printer": ["impresora 3d", "fabricacion aditiva"],
-  "filamento": ["pla", "abs", "filament", "filamento 3d"],
-  "cricut": ["plotter", "cameo", "maquina de corte", "silhouette"],
-  "plotter": ["cricut", "cameo", "cortadora", "silhouette"],
+  // Tecnología Maker / Impresión 3D
+  "impresora 3d": ["3d printer", "printer 3d", "fabricacion aditiva", "ender", "ender 3", "creality", "prusa"],
+  "3d printer": ["impresora 3d", "fabricacion aditiva", "ender"],
+  "filamento": ["pla", "abs", "filament", "filamento 3d", "plastico 3d", "hilo 3d"],
+  "pla": ["filamento", "filamento pla", "plastico 3d", "impresion 3d"],
+  "abs": ["filamento", "filamento abs", "plastico 3d"],
+  "petg": ["filamento", "filamento petg", "plastico 3d"],
+  "resina": ["resina 3d", "resin", "impresora resina", "sla", "dlp", "elegoo"],
+  "ender": ["ender 3", "impresora 3d", "creality", "3d printer"],
+  "ender 3": ["impresora 3d", "creality", "ender"],
+  "creality": ["ender", "impresora 3d", "3d printer"],
+  "prusa": ["impresora 3d", "3d printer", "prusament"],
+  "elegoo": ["impresora 3d", "resina 3d", "mars"],
   
-  // Belleza
-  "secador": ["hair dryer", "secadora de pelo", "blow dryer"],
-  "hair dryer": ["secador", "secadora"],
-  "plancha pelo": ["alisadora", "flat iron", "straightener", "tenaza"],
-  "flat iron": ["plancha pelo", "alisadora"],
+  // Máquinas de corte / Crafts
+  "cricut": ["maquina de corte", "plotter", "cortadora vinilo", "silhouette", "cameo", "crafts"],
+  "plotter": ["cricut", "cameo", "cortadora", "silhouette", "maquina corte"],
+  "silhouette": ["cricut", "plotter", "maquina de corte", "cameo"],
+  "cameo": ["cricut", "silhouette", "plotter", "cortadora"],
+  
+  // Cuidado del Cabello / Belleza
+  "secador": ["hair dryer", "secadora de pelo", "blow dryer", "dyson"],
+  "secadora": ["secador", "hair dryer", "blow dryer", "dyson airwrap"],
+  "dyson": ["secador", "airwrap", "hair dryer", "secadora cabello"],
+  "airwrap": ["dyson", "rizador", "secador", "estilizador"],
+  "hair dryer": ["secador", "secadora", "dyson"],
+  "plancha pelo": ["alisadora", "flat iron", "straightener", "tenaza", "planchita"],
+  "planchita": ["plancha pelo", "alisadora", "flat iron", "straightener"],
+  "alisadora": ["plancha pelo", "planchita", "flat iron"],
+  "flat iron": ["plancha pelo", "alisadora", "planchita"],
+  "rizadora": ["rizador", "tenaza", "curling iron", "rulos", "ondulador"],
+  "rizador": ["rizadora", "tenaza", "curling iron"],
+  "tenaza": ["rizadora", "rizador", "curling iron", "plancha pelo"],
+  "curling iron": ["rizadora", "rizador", "tenaza"],
   "ipl": ["depiladora laser", "luz pulsada", "depilacion"],
   "depiladora": ["ipl", "laser", "luz pulsada"],
   "peluca": ["wig", "extension", "cabello postizo"],
@@ -437,16 +459,35 @@ export const SINONIMOS_BUSQUEDA: Record<string, string[]> = {
   "esmalte": ["nail polish", "unas", "manicura"],
   "nail polish": ["esmalte", "esmalte unas"],
   
-  // Crypto
-  "ledger": ["hardware wallet", "billetera cripto", "trezor", "cold wallet"],
-  "trezor": ["hardware wallet", "billetera cripto", "ledger"],
-  "wallet cripto": ["ledger", "trezor", "hardware wallet", "billetera cripto"],
+  // Criptomonedas / Hardware Wallets
+  "ledger": ["hardware wallet", "billetera cripto", "trezor", "cold wallet", "bitcoin", "crypto"],
+  "trezor": ["hardware wallet", "billetera cripto", "ledger", "cold wallet", "bitcoin"],
+  "wallet cripto": ["ledger", "trezor", "hardware wallet", "billetera cripto", "bitcoin"],
+  "cold wallet": ["ledger", "trezor", "hardware wallet", "billetera fria"],
+  "bitcoin": ["ledger", "trezor", "hardware wallet", "cripto", "crypto"],
+  "crypto": ["ledger", "trezor", "hardware wallet", "bitcoin", "criptomoneda"],
+  "criptomoneda": ["ledger", "trezor", "bitcoin", "crypto", "hardware wallet"],
   
-  // Streaming
-  "ring light": ["aro de luz", "luz led circular", "luz streaming"],
-  "aro de luz": ["ring light", "luz led", "luz circular"],
-  "tripode": ["tripod", "monopod", "selfie stick"],
+  // Streaming / Creadores de Contenido
+  "ring light": ["aro de luz", "luz led circular", "luz streaming", "luz youtuber"],
+  "aro de luz": ["ring light", "luz led", "luz circular", "streaming", "youtuber"],
+  "streaming": ["aro de luz", "microfono usb", "webcam", "capturadora", "youtuber", "twitch"],
+  "youtuber": ["streaming", "aro de luz", "microfono", "camara", "content creator"],
+  "twitch": ["streaming", "capturadora", "microfono", "webcam"],
+  "microfono usb": ["microfono streaming", "blue yeti", "podcasting", "youtuber"],
+  "blue yeti": ["microfono usb", "microfono streaming", "podcasting"],
+  "capturadora": ["elgato", "capture card", "streaming", "obs"],
+  "elgato": ["capturadora", "stream deck", "capture card"],
+  "stream deck": ["elgato", "streaming", "control"],
+  "webcam": ["camara web", "streaming", "logitech"],
+  "tripode": ["tripod", "monopod", "selfie stick", "soporte camara"],
   "selfie stick": ["palo selfie", "monopod", "tripode"],
+  
+  // Figuras y Coleccionables
+  "funko": ["funko pop", "figura coleccionable", "pop vinyl", "muñeco"],
+  "funko pop": ["funko", "figura coleccionable", "pop", "juguete", "decoracion"],
+  "pop vinyl": ["funko", "funko pop", "figura"],
+  "figura coleccionable": ["funko", "estatua", "muñeco", "decoracion"],
   
   // Oficina
   "toner": ["cartucho", "tinta", "ink cartridge"],
