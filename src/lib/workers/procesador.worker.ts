@@ -41,12 +41,17 @@ function nanoid(size = 21): string {
 // ============================================
 
 export interface MensajeWorker {
-  tipo: 'PROCESAR_MANIFIESTO' | 'CANCELAR' | 'OBTENER_ESTADO';
+  tipo: 'PROCESAR_MANIFIESTO' | 'CANCELAR' | 'OBTENER_ESTADO' | 'SET_CONFIG';
   payload?: {
     archivo: ArrayBuffer;
     mawb?: string;
     operador?: string;
     opciones?: OpcionesProcesamiento;
+    // H01: Configuración de umbrales
+    config?: {
+      umbralDeMinimis: number;
+      umbralCorredorObligatorio: number;
+    };
   };
 }
 
@@ -718,12 +723,16 @@ function crearLiquidacionError(paquete: any, error: any): any {
 
 // ═══════════════════════════════════════════════════════════════
 // GENERAR DISTRIBUCIÓN POR VALOR
+// H01 FIX: Recibe umbral como parámetro
 // ═══════════════════════════════════════════════════════════════
 
-function generarDistribucionPorValor(paquetes: any[], liquidaciones: any[]) {
+// Umbral configurable para el worker (se puede actualizar via mensaje)
+let workerUmbralDeMinimis = 100; // Default, se puede actualizar
+
+function generarDistribucionPorValor(paquetes: any[], liquidaciones: any[], umbral: number = workerUmbralDeMinimis) {
   
   const loteA = {
-    nombre: 'Lote A - Menor a $100',
+    nombre: `Lote A - Menor o igual a $${umbral}`,
     paquetes: [] as any[],
     liquidaciones: [] as any[],
     totalPaquetes: 0,
@@ -733,7 +742,7 @@ function generarDistribucionPorValor(paquetes: any[], liquidaciones: any[]) {
   };
   
   const loteB = {
-    nombre: 'Lote B - Mayor a $100',
+    nombre: `Lote B - Mayor a $${umbral}`,
     paquetes: [] as any[],
     liquidaciones: [] as any[],
     totalPaquetes: 0,
@@ -746,7 +755,8 @@ function generarDistribucionPorValor(paquetes: any[], liquidaciones: any[]) {
     const paquete = paquetes[i];
     const liquidacion = liquidaciones[i];
     
-    if (paquete.valor <= 100) {
+    // H01 FIX: Usar umbral parametrizado en lugar de hardcode
+    if (paquete.valor <= umbral) {
       loteA.paquetes.push(paquete);
       loteA.liquidaciones.push(liquidacion);
       loteA.totalPaquetes++;

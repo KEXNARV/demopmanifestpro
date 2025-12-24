@@ -4,7 +4,10 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { AuthProvider } from "@/contexts/AuthContext";
+import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import Index from "./pages/Index";
+import Auth from "./pages/Auth";
 import Historial from "./pages/Historial";
 import TestDeteccion from "./pages/TestDeteccion";
 import DashboardManifiesto from "./pages/DashboardManifiesto";
@@ -52,21 +55,52 @@ const App: React.FC = () => {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/historial" element={<Historial />} />
-            <Route path="/test-deteccion" element={<TestDeteccion />} />
-            <Route path="/dashboard/:manifiestoId" element={<DashboardManifiesto />} />
-            <Route path="/aranceles" element={<BuscadorAranceles />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
+      <AuthProvider>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              {/* Ruta pública de autenticación */}
+              <Route path="/auth" element={<Auth />} />
+              
+              {/* Rutas protegidas */}
+              <Route path="/" element={
+                <ProtectedRoute>
+                  <Index />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/historial" element={
+                <ProtectedRoute>
+                  <Historial />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/test-deteccion" element={
+                <ProtectedRoute allowedRoles={['admin', 'revisor']}>
+                  <TestDeteccion />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/dashboard/:manifiestoId" element={
+                <ProtectedRoute>
+                  <DashboardManifiesto />
+                </ProtectedRoute>
+              } />
+              
+              <Route path="/aranceles" element={
+                <ProtectedRoute>
+                  <BuscadorAranceles />
+                </ProtectedRoute>
+              } />
+              
+              {/* Catch-all */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </AuthProvider>
     </QueryClientProvider>
   );
 };

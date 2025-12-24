@@ -4,10 +4,12 @@
  * Dashboard mejorado que muestra:
  * 1. Información del MAWB y aerolínea detectada
  * 2. Estadísticas generales
- * 3. Distribución automática por valor (<$100 y >$100)
+ * 3. Distribución automática por valor (según umbral configurable)
  * 4. Clasificación HTS de productos
  * 5. Tablas de paquetes por lote
  * 6. Exportación a Excel
+ * 
+ * H01 FIX: Usa ConfigService para umbrales
  */
 
 import { useState, useEffect, useMemo } from 'react';
@@ -48,6 +50,7 @@ import { GTINPanel } from '@/components/manifest/GTINPanel';
 import { RevisionGTIN } from '@/components/manifest/RevisionGTIN';
 import { extraerGTINsDeTexto } from '@/lib/gtin/gtinProcessor';
 import { ManifestRow } from '@/types/manifest';
+import { ConfigService } from '@/lib/config/ConfigService';
 
 // Colores para categorías aduaneras
 const COLORES_CATEGORIA: Record<string, string> = {
@@ -132,24 +135,28 @@ export default function DashboardManifiesto() {
 
     const totalCobrar = valorCIFTotal + tributosTotal;
 
-    // Distribución por valor
-    const menorA100 = paquetes.filter(p => (p.valorUSD || 0) <= 100);
-    const mayorA100 = paquetes.filter(p => (p.valorUSD || 0) > 100);
+    // H01 FIX: Usar umbral desde ConfigService
+    const umbral = ConfigService.getUmbralDeMinimis();
+    
+    // Distribución por valor usando umbral configurable
+    const menorAUmbral = paquetes.filter(p => (p.valorUSD || 0) <= umbral);
+    const mayorAUmbral = paquetes.filter(p => (p.valorUSD || 0) > umbral);
 
     return { 
       totalPaquetes, 
       valorCIFTotal, 
       tributosTotal, 
       totalCobrar,
-      menorA100: {
-        cantidad: menorA100.length,
-        porcentaje: totalPaquetes > 0 ? Math.round((menorA100.length / totalPaquetes) * 100) : 0,
-        valorTotal: menorA100.reduce((sum, p) => sum + (p.valorUSD || 0), 0)
+      umbral, // Incluir umbral en estadísticas
+      menorAUmbral: {
+        cantidad: menorAUmbral.length,
+        porcentaje: totalPaquetes > 0 ? Math.round((menorAUmbral.length / totalPaquetes) * 100) : 0,
+        valorTotal: menorAUmbral.reduce((sum, p) => sum + (p.valorUSD || 0), 0)
       },
-      mayorA100: {
-        cantidad: mayorA100.length,
-        porcentaje: totalPaquetes > 0 ? Math.round((mayorA100.length / totalPaquetes) * 100) : 0,
-        valorTotal: mayorA100.reduce((sum, p) => sum + (p.valorUSD || 0), 0)
+      mayorAUmbral: {
+        cantidad: mayorAUmbral.length,
+        porcentaje: totalPaquetes > 0 ? Math.round((mayorAUmbral.length / totalPaquetes) * 100) : 0,
+        valorTotal: mayorAUmbral.reduce((sum, p) => sum + (p.valorUSD || 0), 0)
       }
     };
   }, [paquetes]);
@@ -157,6 +164,8 @@ export default function DashboardManifiesto() {
   // Datos para gráfico de pastel
   const datosGrafico = useMemo(() => {
     const conteo: Record<string, number> = {};
+    const umbral = ConfigService.getUmbralDeMinimis();
+    const umbralCorredor = ConfigService.getUmbralCorredorObligatorio();
     
     paquetes.forEach(p => {
       const cat = p.categoriaAduanera || 'Sin Clasificar';
@@ -165,17 +174,18 @@ export default function DashboardManifiesto() {
 
     return Object.entries(conteo).map(([name, value]) => ({
       name: name === 'A' ? 'A - Documentos' :
-            name === 'B' ? 'B - De Minimis (≤$100)' :
-            name === 'C' ? 'C - Medio ($100-$2,000)' :
-            name === 'D' ? 'D - Alto (≥$2,000)' : name,
+            name === 'B' ? `B - De Minimis (≤$${umbral})` :
+            name === 'C' ? `C - Medio ($${umbral}-$${umbralCorredor})` :
+            name === 'D' ? `D - Alto (≥$${umbralCorredor})` : name,
       value,
       color: COLORES_CATEGORIA[name] || COLORES_CATEGORIA['Sin Clasificar']
     }));
   }, [paquetes]);
 
-  // Paquetes separados por lote
-  const loteA = useMemo(() => paquetes.filter(p => (p.valorUSD || 0) <= 100), [paquetes]);
-  const loteB = useMemo(() => paquetes.filter(p => (p.valorUSD || 0) > 100), [paquetes]);
+  // Paquetes separados por lote - H01 FIX: Usar umbral configurable
+  const umbral = ConfigService.getUmbralDeMinimis();
+  const loteA = useMemo(() => paquetes.filter(p => (p.valorUSD || 0) <= umbral), [paquetes, umbral]);
+  const loteB = useMemo(() => paquetes.filter(p => (p.valorUSD || 0) > umbral), [paquetes, umbral]);
   const conRestricciones = useMemo(() => paquetes.filter(p => p.requierePermiso), [paquetes]);
 
   // Descripciones para análisis GTIN
@@ -307,8 +317,8 @@ export default function DashboardManifiesto() {
         ['Con Restricciones:', conRestricciones.length],
         [''],
         ['DISTRIBUCIÓN POR VALOR'],
-        ['Menores a $100:', metricas.menorA100.cantidad, `(${metricas.menorA100.porcentaje}%)`],
-        ['Mayores a $100:', metricas.mayorA100.cantidad, `(${metricas.mayorA100.porcentaje}%)`],
+        [`Menores o igual a $${metricas.umbral}:`, metricas.menorAUmbral.cantidad, `(${metricas.menorAUmbral.porcentaje}%)`],
+        [`Mayores a $${metricas.umbral}:`, metricas.mayorAUmbral.cantidad, `(${metricas.mayorAUmbral.porcentaje}%)`],
         [''],
         ['FINANCIERO'],
         ['Valor CIF Total:', `$${metricas.valorCIFTotal.toFixed(2)}`],
@@ -341,7 +351,7 @@ export default function DashboardManifiesto() {
         });
         
         datosLoteA.push([]);
-        datosLoteA.push(['TOTAL', '', '', '', '', '', `$${metricas.menorA100.valorTotal.toFixed(2)}`]);
+        datosLoteA.push(['TOTAL', '', '', '', '', '', `$${metricas.menorAUmbral.valorTotal.toFixed(2)}`]);
         
         const wsLoteA = XLSX.utils.aoa_to_sheet(datosLoteA);
         wsLoteA['!cols'] = [{ wch: 5 }, { wch: 20 }, { wch: 25 }, { wch: 30 }, { wch: 40 }, { wch: 10 }, { wch: 12 }];
@@ -369,7 +379,7 @@ export default function DashboardManifiesto() {
         });
         
         datosLoteB.push([]);
-        datosLoteB.push(['TOTAL', '', '', '', '', '', `$${metricas.mayorA100.valorTotal.toFixed(2)}`]);
+        datosLoteB.push(['TOTAL', '', '', '', '', '', `$${metricas.mayorAUmbral.valorTotal.toFixed(2)}`]);
         
         const wsLoteB = XLSX.utils.aoa_to_sheet(datosLoteB);
         wsLoteB['!cols'] = [{ wch: 5 }, { wch: 20 }, { wch: 25 }, { wch: 30 }, { wch: 40 }, { wch: 10 }, { wch: 12 }];
@@ -592,19 +602,19 @@ export default function DashboardManifiesto() {
         <Card className="border-blue-200 dark:border-blue-800 bg-blue-50/50 dark:bg-blue-950/30">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>Lote A - Menores a $100</span>
+              <span>Lote A - Menores o igual a ${metricas.umbral}</span>
               <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                {metricas.menorA100.cantidad} paquetes
+                {metricas.menorAUmbral.cantidad} paquetes
               </Badge>
             </CardTitle>
             <CardDescription>
-              {metricas.menorA100.porcentaje}% del total
+              {metricas.menorAUmbral.porcentaje}% del total
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Valor Total:</span>
-              <span className="font-semibold">${metricas.menorA100.valorTotal.toFixed(2)}</span>
+              <span className="font-semibold">${metricas.menorAUmbral.valorTotal.toFixed(2)}</span>
             </div>
           </CardContent>
         </Card>
@@ -612,19 +622,19 @@ export default function DashboardManifiesto() {
         <Card className="border-amber-200 dark:border-amber-800 bg-amber-50/50 dark:bg-amber-950/30">
           <CardHeader>
             <CardTitle className="flex items-center justify-between">
-              <span>Lote B - Mayores a $100</span>
+              <span>Lote B - Mayores a ${metricas.umbral}</span>
               <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
-                {metricas.mayorA100.cantidad} paquetes
+                {metricas.mayorAUmbral.cantidad} paquetes
               </Badge>
             </CardTitle>
             <CardDescription>
-              {metricas.mayorA100.porcentaje}% del total
+              {metricas.mayorAUmbral.porcentaje}% del total
             </CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex justify-between text-sm">
               <span className="text-muted-foreground">Valor Total:</span>
-              <span className="font-semibold">${metricas.mayorA100.valorTotal.toFixed(2)}</span>
+              <span className="font-semibold">${metricas.mayorAUmbral.valorTotal.toFixed(2)}</span>
             </div>
           </CardContent>
         </Card>

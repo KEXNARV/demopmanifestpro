@@ -9,6 +9,7 @@
  */
 
 import { CategoriaAduanera } from '@/types/aduanas';
+import { ConfigService } from '@/lib/config/ConfigService';
 
 // ═══════════════════════════════════════════════════════════════
 // TIPOS Y ENUMS
@@ -1422,15 +1423,15 @@ export class ClasificadorInteligente {
   
   /**
    * Determina la categoría aduanera basada en valor
+   * H01 FIX: Usa ConfigService en lugar de hardcode
    */
   private static determinarCategoriaAduanera(
     valor: number,
     esDocumento: boolean
   ): CategoriaAduanera {
     if (esDocumento) return 'A';
-    if (valor <= 100) return 'B';
-    if (valor >= 2000) return 'D';
-    return 'C';
+    // H01: Usar configuración centralizada
+    return ConfigService.clasificarPorValor(valor);
   }
   
   /**
