@@ -4,7 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { ARANCELES_PANAMA } from '@/lib/aduanas/arancelesData';
+import { ARANCELES_COMPLETOS } from '@/lib/aduanas/arancelesCompletos';
 import { Link } from 'react-router-dom';
 import { ImportadorAranceles } from '@/components/aranceles/ImportadorAranceles';
 import type { Arancel } from '@/types/aduanas';
@@ -14,7 +14,7 @@ export default function BuscadorAranceles() {
   const [arancelesImportados, setArancelesImportados] = useState<Arancel[]>([]);
 
   const todosAranceles = useMemo(() => {
-    return [...ARANCELES_PANAMA, ...arancelesImportados];
+    return [...ARANCELES_COMPLETOS, ...arancelesImportados];
   }, [arancelesImportados]);
 
   const handleImport = (nuevos: Arancel[]) => {
