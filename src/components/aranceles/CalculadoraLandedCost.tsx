@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Calculator, Scale, DollarSign, Truck, Shield, AlertTriangle, CheckCircle, Briefcase } from 'lucide-react';
+import { Calculator, Scale, DollarSign, Truck, Shield, AlertTriangle, CheckCircle, Briefcase, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -20,6 +20,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
+import { jsPDF } from 'jspdf';
 import type { Arancel } from '@/types/aduanas';
 
 interface CalculadoraLandedCostProps {
@@ -137,7 +138,177 @@ export function CalculadoraLandedCost({ arancel, trigger }: CalculadoraLandedCos
   const formatMoney = (value: number) => 
     new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(value);
 
+  const formatMoneyPDF = (value: number) => `$${value.toFixed(2)}`;
+
   const isExento = daiPercent === 0 && itbmsPercent === 0;
+
+  // Generar PDF
+  const generarPDF = () => {
+    if (!resultado) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const margin = 20;
+    let y = 20;
+
+    // Colores
+    const primaryColor: [number, number, number] = [30, 64, 175]; // blue-800
+    const textColor: [number, number, number] = [51, 65, 85]; // slate-700
+    const lightGray: [number, number, number] = [241, 245, 249]; // slate-100
+
+    // Encabezado
+    doc.setFillColor(...primaryColor);
+    doc.rect(0, 0, pageWidth, 45, 'F');
+    
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(22);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Estimado de Costos Aduanales', margin, y + 8);
+    
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Basado en el Arancel de Importacion de Panama', margin, y + 18);
+    
+    const fecha = new Date().toLocaleDateString('es-PA', { 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+    doc.setFontSize(10);
+    doc.text(`Fecha de generacion: ${fecha}`, margin, y + 28);
+
+    y = 55;
+
+    // Detalle del Producto
+    doc.setTextColor(...primaryColor);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Detalle del Producto', margin, y);
+    y += 8;
+
+    doc.setDrawColor(...primaryColor);
+    doc.setLineWidth(0.5);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 8;
+
+    doc.setTextColor(...textColor);
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+
+    const productDetails = [
+      ['Producto:', arancel.descripcion],
+      ['Codigo Arancelario (HS):', arancel.hsCode],
+      ['DAI Aplicado:', `${resultado.daiPercent}%`],
+      ['ITBMS Aplicado:', `${resultado.itbmsPercent}%`],
+      ['Categoria:', arancel.categoria || 'General'],
+    ];
+
+    productDetails.forEach(([label, value]) => {
+      doc.setFont('helvetica', 'bold');
+      doc.text(label, margin, y);
+      doc.setFont('helvetica', 'normal');
+      doc.text(String(value), margin + 50, y);
+      y += 6;
+    });
+
+    y += 10;
+
+    // Tabla de Desglose
+    doc.setTextColor(...primaryColor);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Desglose de Costos (Liquidacion)', margin, y);
+    y += 8;
+
+    doc.setDrawColor(...primaryColor);
+    doc.line(margin, y, pageWidth - margin, y);
+    y += 10;
+
+    const tableData = [
+      { label: 'Valor FOB (Mercancia)', value: resultado.valorFOB, isHeader: false },
+      { label: 'Flete Estimado', value: resultado.costoFlete, isHeader: false },
+      { label: 'Seguro (1%)', value: resultado.seguro, isHeader: false },
+      { label: 'VALOR CIF (Base Imponible)', value: resultado.valorCIF, isHeader: true },
+      { label: `(+) Arancel de Importacion (DAI ${resultado.daiPercent}%)`, value: resultado.daiAmount, isHeader: false },
+      { label: `(+) ITBMS (${resultado.itbmsPercent}%)`, value: resultado.itbmsAmount, isHeader: false },
+    ];
+
+    if (resultado.esImportacionFormal) {
+      tableData.push({ label: '(+) Tasa Administrativa (TGA)', value: resultado.tasaAdministrativa, isHeader: false });
+    }
+
+    doc.setTextColor(...textColor);
+    doc.setFontSize(10);
+
+    tableData.forEach((item, index) => {
+      if (item.isHeader) {
+        doc.setFillColor(...lightGray);
+        doc.rect(margin, y - 4, pageWidth - margin * 2, 8, 'F');
+        doc.setFont('helvetica', 'bold');
+      } else {
+        doc.setFont('helvetica', 'normal');
+      }
+      doc.text(item.label, margin + 2, y);
+      doc.text(formatMoneyPDF(item.value), pageWidth - margin - 25, y, { align: 'right' });
+      y += 8;
+    });
+
+    y += 5;
+
+    // Total Tributos
+    doc.setFillColor(254, 243, 199); // amber-100
+    doc.rect(margin, y - 4, pageWidth - margin * 2, 10, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(146, 64, 14); // amber-800
+    doc.text('TOTAL A PAGAR EN ADUANAS:', margin + 2, y + 2);
+    doc.setFontSize(12);
+    doc.text(formatMoneyPDF(resultado.totalTributos), pageWidth - margin - 25, y + 2, { align: 'right' });
+    y += 15;
+
+    // Total Final
+    doc.setFillColor(...primaryColor);
+    doc.rect(margin, y - 4, pageWidth - margin * 2, 14, 'F');
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(11);
+    doc.text('COSTO TOTAL (Mercancia + Impuestos):', margin + 2, y + 3);
+    doc.setFontSize(14);
+    doc.setFont('helvetica', 'bold');
+    doc.text(formatMoneyPDF(resultado.totalAPagar), pageWidth - margin - 25, y + 3, { align: 'right' });
+
+    y += 25;
+
+    // Alerta Importacion Formal
+    if (resultado.esImportacionFormal) {
+      doc.setFillColor(254, 249, 195); // yellow-100
+      doc.rect(margin, y - 4, pageWidth - margin * 2, 18, 'F');
+      doc.setTextColor(133, 77, 14); // yellow-800
+      doc.setFontSize(9);
+      doc.setFont('helvetica', 'bold');
+      doc.text('IMPORTACION FORMAL', margin + 2, y + 2);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      const alertText = 'Al superar los $2,000 CIF, esta carga requiere un Corredor de Aduanas. Los honorarios del corredor no estan incluidos en este estimado.';
+      const splitAlert = doc.splitTextToSize(alertText, pageWidth - margin * 2 - 4);
+      doc.text(splitAlert, margin + 2, y + 9);
+      y += 25;
+    }
+
+    // Disclaimer
+    y = doc.internal.pageSize.getHeight() - 30;
+    doc.setDrawColor(200, 200, 200);
+    doc.line(margin, y - 5, pageWidth - margin, y - 5);
+    
+    doc.setTextColor(100, 116, 139); // slate-500
+    doc.setFontSize(7);
+    doc.setFont('helvetica', 'italic');
+    const disclaimer = 'Este documento es una estimacion referencial basada en los datos proporcionados. No constituye una liquidacion oficial de la Autoridad Nacional de Aduanas. Los aforadores oficiales tienen la potestad final sobre la clasificacion y valoracion de la mercancia.';
+    const splitDisclaimer = doc.splitTextToSize(disclaimer, pageWidth - margin * 2);
+    doc.text(splitDisclaimer, margin, y);
+
+    // Descargar
+    const fileName = `estimado-aduanal-${arancel.hsCode.replace(/\./g, '')}-${new Date().toISOString().split('T')[0]}.pdf`;
+    doc.save(fileName);
+  };
 
   return (
     <Sheet>
@@ -446,6 +617,15 @@ export function CalculadoraLandedCost({ arancel, trigger }: CalculadoraLandedCos
                 </span>
               </div>
             </div>
+
+            {/* Botón Descargar PDF */}
+            <Button 
+              onClick={generarPDF}
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-lg"
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Descargar Estimado en PDF
+            </Button>
 
             {/* Advertencia si hay impuestos altos */}
             {resultado.daiPercent > 50 && (
