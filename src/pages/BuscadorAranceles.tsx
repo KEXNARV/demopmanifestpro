@@ -6,18 +6,29 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Badge } from '@/components/ui/badge';
 import { ARANCELES_PANAMA } from '@/lib/aduanas/arancelesData';
 import { Link } from 'react-router-dom';
+import { ImportadorAranceles } from '@/components/aranceles/ImportadorAranceles';
+import type { Arancel } from '@/types/aduanas';
 
 export default function BuscadorAranceles() {
   const [busqueda, setBusqueda] = useState('');
+  const [arancelesImportados, setArancelesImportados] = useState<Arancel[]>([]);
+
+  const todosAranceles = useMemo(() => {
+    return [...ARANCELES_PANAMA, ...arancelesImportados];
+  }, [arancelesImportados]);
+
+  const handleImport = (nuevos: Arancel[]) => {
+    setArancelesImportados(prev => [...prev, ...nuevos]);
+  };
 
   const resultados = useMemo(() => {
     if (!busqueda.trim()) {
-      return ARANCELES_PANAMA;
+      return todosAranceles;
     }
 
     const termino = busqueda.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-    return ARANCELES_PANAMA.filter(arancel => {
+    return todosAranceles.filter(arancel => {
       const codigo = arancel.hsCode.toLowerCase();
       const descripcion = arancel.descripcion.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
       const categoria = (arancel.categoria || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
@@ -26,7 +37,7 @@ export default function BuscadorAranceles() {
              descripcion.includes(termino) || 
              categoria.includes(termino);
     });
-  }, [busqueda]);
+  }, [busqueda, todosAranceles]);
 
   const formatearPorcentaje = (valor: number) => {
     if (valor === 0) return 'Exento';
@@ -48,12 +59,15 @@ export default function BuscadorAranceles() {
                 <p className="text-blue-200 text-sm">República de Panamá - Autoridad Nacional de Aduanas</p>
               </div>
             </div>
-            <Link 
-              to="/" 
-              className="text-blue-200 hover:text-white text-sm underline underline-offset-2"
-            >
-              ← Volver al inicio
-            </Link>
+            <div className="flex items-center gap-4">
+              <ImportadorAranceles onImport={handleImport} />
+              <Link 
+                to="/" 
+                className="text-blue-200 hover:text-white text-sm underline underline-offset-2"
+              >
+                ← Volver al inicio
+              </Link>
+            </div>
           </div>
         </div>
       </header>
@@ -86,7 +100,12 @@ export default function BuscadorAranceles() {
               
               <div className="flex items-center justify-center gap-2 mt-4 text-sm text-slate-500">
                 <Info className="h-4 w-4" />
-                <span>Mostrando {resultados.length} de {ARANCELES_PANAMA.length} aranceles</span>
+                <span>Mostrando {resultados.length} de {todosAranceles.length} aranceles</span>
+                {arancelesImportados.length > 0 && (
+                  <Badge variant="secondary" className="ml-2">
+                    +{arancelesImportados.length} importados
+                  </Badge>
+                )}
               </div>
             </div>
           </CardContent>
