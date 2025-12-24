@@ -163,6 +163,66 @@ export const ARANCELES_COMPLETOS: Arancel[] = [
   { hsCode: "8303.00.00.00", descripcion: "Cajas fuertes de seguridad domésticas", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Seguridad", unidad: "u" },
   { hsCode: "9207.10.00.00", descripcion: "Teclados MIDI / Controladores musicales", daiPercent: 5, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Música", unidad: "u" },
   { hsCode: "8516.40.00.00", descripcion: "Planchas de vapor verticales (Steamers)", daiPercent: 5, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Electrodomésticos", unidad: "u" },
+  // Autopartes
+  { hsCode: "8708.30.10.00", descripcion: "Frenos y servofrenos (Pastillas de freno)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Autopartes", unidad: "kg" },
+  { hsCode: "8708.10.00.00", descripcion: "Parachoques (Bumpers) y sus partes", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Autopartes", unidad: "kg" },
+  { hsCode: "8708.91.00.00", descripcion: "Radiadores para vehículos", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Autopartes", unidad: "kg" },
+  { hsCode: "7007.21.00.00", descripcion: "Parabrisas de vidrio laminado", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Autopartes", unidad: "kg" },
+  { hsCode: "8511.40.00.00", descripcion: "Motores de arranque (Starter)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Autopartes", unidad: "u" },
+  { hsCode: "8511.50.00.00", descripcion: "Generadores (Alternadores)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Autopartes", unidad: "u" },
+  { hsCode: "4016.99.90.00", descripcion: "Alfombras para auto (Rubber mats)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Autopartes", unidad: "u" },
+  // Bebidas Alcohólicas
+  { hsCode: "2204.21.00.00", descripcion: "Vino en recipientes <= 2 litros", daiPercent: 15, iscPercent: 0, itbmsPercent: 10, requiresPermiso: false, categoria: "Bebidas Alcohólicas", unidad: "l" },
+  { hsCode: "2208.40.00.00", descripcion: "Ron y demás aguardientes de caña", daiPercent: 10, iscPercent: 0, itbmsPercent: 10, requiresPermiso: false, categoria: "Bebidas Alcohólicas", unidad: "l" },
+  { hsCode: "2208.60.00.00", descripcion: "Vodka", daiPercent: 10, iscPercent: 0, itbmsPercent: 10, requiresPermiso: false, categoria: "Bebidas Alcohólicas", unidad: "l" },
+  { hsCode: "2208.70.00.00", descripcion: "Licores y cremas (ej. Baileys)", daiPercent: 15, iscPercent: 0, itbmsPercent: 10, requiresPermiso: false, categoria: "Bebidas Alcohólicas", unidad: "l" },
+  // Pinturas y Construcción
+  { hsCode: "3208.10.00.00", descripcion: "Pinturas y barnices (Base poliéster)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Pinturas", unidad: "kg" },
+  { hsCode: "3209.10.00.00", descripcion: "Pinturas acrílicas o vinílicas (Base agua)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Pinturas", unidad: "kg" },
+  { hsCode: "6910.10.00.00", descripcion: "Inodoros y lavabos de porcelana", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Baño", unidad: "u" },
+  { hsCode: "7324.10.00.00", descripcion: "Fregaderos de acero inoxidable", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Cocina", unidad: "u" },
+  { hsCode: "8481.80.10.00", descripcion: "Grifería (Llaves de agua para cocina/baño)", daiPercent: 5, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Baño", unidad: "kg" },
+  // Hogar y Decoración
+  { hsCode: "5703.20.00.00", descripcion: "Alfombras y revestimientos de nailon", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Hogar", unidad: "m2" },
+  { hsCode: "6303.91.00.00", descripcion: "Cortinas y visillos", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Hogar", unidad: "kg" },
+  { hsCode: "9404.90.00.00", descripcion: "Edredones y cojines", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Hogar", unidad: "u" },
+  { hsCode: "3925.90.20.00", descripcion: "Persianas y celosías de plástico", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Hogar", unidad: "kg" },
+  // Bebé
+  { hsCode: "6111.20.00.00", descripcion: "Ropa de bebé de algodón", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Bebé", unidad: "kg" },
+  { hsCode: "9503.00.10.00", descripcion: "Coches y sillas de paseo para bebé", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Bebé", unidad: "u" },
+  { hsCode: "9403.70.00.00", descripcion: "Sillas altas para comer (Bebés)", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Bebé", unidad: "u" },
+  { hsCode: "3926.90.99.00", descripcion: "Biberones y chupones", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Bebé", unidad: "kg" },
+  // Instrumentos Musicales
+  { hsCode: "9202.90.00.00", descripcion: "Guitarras (Acústicas y Eléctricas)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Música", unidad: "u" },
+  { hsCode: "9205.10.00.00", descripcion: "Instrumentos de viento (Trompetas/Saxofones)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Música", unidad: "u" },
+  { hsCode: "9206.00.00.00", descripcion: "Instrumentos de percusión (Tambores)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Música", unidad: "u" },
+  { hsCode: "9209.92.00.00", descripcion: "Cuerdas para instrumentos musicales", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Música", unidad: "kg" },
+  // Joyería y Accesorios
+  { hsCode: "7117.19.00.00", descripcion: "Bisutería (Joyería de fantasía)", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Joyería", unidad: "kg" },
+  { hsCode: "9101.21.00.00", descripcion: "Relojes de pulsera automáticos (Metal precioso)", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Relojes", unidad: "u" },
+  // Farmacéuticos y Aromaterapia
+  { hsCode: "9602.00.90.00", descripcion: "Cápsulas de gelatina vacías (Farma/Suplementos)", daiPercent: 0, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Farmacéuticos", unidad: "kg" },
+  { hsCode: "3301.29.00.00", descripcion: "Aceites esenciales (Aromaterapia)", daiPercent: 5, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Bienestar", unidad: "kg" },
+  { hsCode: "3307.41.00.00", descripcion: "Varillas de incienso y preparaciones perfumadas", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Bienestar", unidad: "kg" },
+  { hsCode: "9613.10.00.00", descripcion: "Encendedores de bolsillo (Gas)", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Varios", unidad: "u" },
+  // Viaje y Accesorios personales
+  { hsCode: "4202.12.00.00", descripcion: "Maletas de viaje (Plástico/Textil)", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Viaje", unidad: "u" },
+  { hsCode: "4203.30.00.00", descripcion: "Cinturones de cuero", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Accesorios", unidad: "u" },
+  { hsCode: "6601.91.00.00", descripcion: "Paraguas y sombrillas", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Accesorios", unidad: "u" },
+  // Deportes y Hobbies
+  { hsCode: "9507.10.00.00", descripcion: "Cañas de pescar y anzuelos", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Deportes", unidad: "u" },
+  { hsCode: "9506.31.00.00", descripcion: "Palos de golf", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Deportes", unidad: "u" },
+  // Cuidado personal
+  { hsCode: "8214.20.00.00", descripcion: "Sets de manicura y pedicura", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Higiene", unidad: "kg" },
+  { hsCode: "9615.11.00.00", descripcion: "Peines y pasadores para el cabello", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Higiene", unidad: "kg" },
+  // Cocina
+  { hsCode: "8211.91.00.00", descripcion: "Cuchillos de mesa y cocina", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Cocina", unidad: "u" },
+  { hsCode: "7323.93.00.00", descripcion: "Ollas y sartenes de acero inoxidable", daiPercent: 10, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Cocina", unidad: "kg" },
+  { hsCode: "8509.80.90.00", descripcion: "Trituradoras de basura domésticas", daiPercent: 5, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Electrodomésticos", unidad: "u" },
+  // Decoración
+  { hsCode: "3926.40.00.00", descripcion: "Figuras decorativas (Adornos de plástico)", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Decoración", unidad: "kg" },
+  { hsCode: "4420.10.00.00", descripcion: "Figuras decorativas (Adornos de madera)", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Decoración", unidad: "kg" },
+  { hsCode: "8306.29.00.00", descripcion: "Marcos para fotografías (Portarretratos)", daiPercent: 15, iscPercent: 0, itbmsPercent: 7, requiresPermiso: false, categoria: "Decoración", unidad: "kg" },
 ];
 
 // Obtener categorías únicas para filtros
