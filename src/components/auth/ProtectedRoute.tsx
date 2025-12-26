@@ -1,6 +1,13 @@
 // ============================================
 // ProtectedRoute - Protección de rutas por autenticación y permisos
 // H02: Enforcement de acceso a rutas
+// 
+// SECURITY NOTE: This component provides client-side route protection for UX purposes.
+// It controls UI visibility and redirects but is NOT a security boundary.
+// Actual security is enforced by:
+// - RLS (Row Level Security) policies on all database tables
+// - Server-side role checks via has_role() database function
+// - Edge Functions authentication via supabase.auth.getUser()
 // ============================================
 
 import React from 'react';

@@ -20,9 +20,9 @@ export interface ManifiestoLock {
 const LOCKS_KEY = 'manifest_locks';
 const TIMEOUT_MINUTOS = 30;
 
-// Generar session ID único
+// Generar session ID único usando Web Crypto API
 function generarSessionId(): string {
-  return `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  return `session_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
 }
 
 // Session ID único para esta instancia
