@@ -18,6 +18,19 @@ export interface DatosCartaRelevo {
 }
 
 /**
+ * Escapa caracteres HTML para prevenir XSS
+ */
+function escapeHtml(unsafe: string): string {
+  if (!unsafe) return '';
+  return unsafe
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+/**
  * Genera el contenido HTML de la Carta de Relevo
  */
 export function generarHTMLCartaRelevo(datos: DatosCartaRelevo): string {
@@ -27,12 +40,20 @@ export function generarHTMLCartaRelevo(datos: DatosCartaRelevo): string {
     year: 'numeric'
   });
 
+  // Sanitize all user-provided fields to prevent XSS
+  const safeNombre = escapeHtml(datos.nombreConsignatario);
+  const safeCedula = escapeHtml(datos.cedula || '[POR COMPLETAR]');
+  const safeTelefono = escapeHtml(datos.telefono || '[POR COMPLETAR]');
+  const safeDireccion = escapeHtml(datos.direccion);
+  const safeDescripcion = escapeHtml(datos.descripcionProducto);
+  const safeTracking = escapeHtml(datos.trackingNumber);
+
   return `
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Carta de Relevo - ${datos.trackingNumber}</title>
+  <title>Carta de Relevo - ${safeTracking}</title>
   <style>
     body {
       font-family: 'Times New Roman', serif;
@@ -102,9 +123,9 @@ export function generarHTMLCartaRelevo(datos: DatosCartaRelevo): string {
   <div class="content">
     <p>Panamá, ${fecha}</p>
     
-    <p>Yo, <strong>${datos.nombreConsignatario}</strong>, portador(a) de la cédula de identidad personal 
-    No. <strong>${datos.cedula || '[POR COMPLETAR]'}</strong>, con domicilio en 
-    <strong>${datos.direccion}</strong>, bajo juramento declaro:</p>
+    <p>Yo, <strong>${safeNombre}</strong>, portador(a) de la cédula de identidad personal 
+    No. <strong>${safeCedula}</strong>, con domicilio en 
+    <strong>${safeDireccion}</strong>, bajo juramento declaro:</p>
 
     <p><strong>PRIMERO:</strong> Que el siguiente producto importado es para mi uso personal y/o familiar, 
     y no tiene fines comerciales ni de reventa:</p>
@@ -113,11 +134,11 @@ export function generarHTMLCartaRelevo(datos: DatosCartaRelevo): string {
       <table>
         <tr>
           <td>Número de Guía:</td>
-          <td>${datos.trackingNumber}</td>
+          <td>${safeTracking}</td>
         </tr>
         <tr>
           <td>Descripción del Producto:</td>
-          <td>${datos.descripcionProducto}</td>
+          <td>${safeDescripcion}</td>
         </tr>
         <tr>
           <td>Valor Declarado:</td>
@@ -144,9 +165,9 @@ export function generarHTMLCartaRelevo(datos: DatosCartaRelevo): string {
 
     <div class="signature-section">
       <div class="signature-line">
-        ${datos.nombreConsignatario}<br>
-        Cédula: ${datos.cedula || '[POR COMPLETAR]'}<br>
-        Tel: ${datos.telefono || '[POR COMPLETAR]'}
+        ${safeNombre}<br>
+        Cédula: ${safeCedula}<br>
+        Tel: ${safeTelefono}
       </div>
     </div>
 
