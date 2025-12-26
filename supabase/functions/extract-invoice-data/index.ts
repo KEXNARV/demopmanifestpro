@@ -1,9 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Input validation constants
+const MAX_TEXT_LENGTH = 50000; // 50KB of text
+const MAX_FILENAME_LENGTH = 255;
+const MIN_TEXT_LENGTH = 10;
 
 interface ExtractedInvoiceData {
   awbs: string[];
@@ -23,26 +29,147 @@ serve(async (req) => {
   }
 
   try {
-    const { textoFactura, nombreArchivo } = await req.json();
-    
-    if (!textoFactura || textoFactura.trim().length === 0) {
-      console.error('No se proporcionó texto de factura');
+    // ============================================
+    // AUTHENTICATION CHECK
+    // ============================================
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.error('No authorization header provided');
       return new Response(
-        JSON.stringify({ error: 'No se proporcionó texto de factura' }),
+        JSON.stringify({ error: 'Autenticación requerida' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseClient = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: authHeader } } }
+    );
+
+    const { data: { user }, error: authError } = await supabaseClient.auth.getUser();
+    
+    if (authError || !user) {
+      console.error('Authentication failed:', authError?.message);
+      return new Response(
+        JSON.stringify({ error: 'No autorizado' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Check user role - only allow operador, revisor, auditor, and admin
+    const { data: roleData, error: roleError } = await supabaseClient
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', user.id)
+      .single();
+
+    if (roleError || !roleData) {
+      console.error('Role check failed:', roleError?.message);
+      return new Response(
+        JSON.stringify({ error: 'Usuario sin rol asignado' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const allowedRoles = ['operador', 'revisor', 'auditor', 'admin'];
+    if (!allowedRoles.includes(roleData.role)) {
+      console.error('Insufficient permissions for role:', roleData.role);
+      return new Response(
+        JSON.stringify({ error: 'Permiso denegado' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // ============================================
+    // INPUT VALIDATION
+    // ============================================
+    
+    // Check content-length header before parsing
+    const contentLength = req.headers.get('content-length');
+    if (contentLength && parseInt(contentLength) > MAX_TEXT_LENGTH + 1000) {
+      console.error('Request payload too large:', contentLength);
+      return new Response(
+        JSON.stringify({ error: 'Payload demasiado grande' }),
+        { status: 413, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const body = await req.json();
+    const { textoFactura, nombreArchivo } = body;
+
+    // Validate input types
+    if (typeof textoFactura !== 'string') {
+      console.error('Invalid textoFactura type:', typeof textoFactura);
+      return new Response(
+        JSON.stringify({ error: 'Tipo de datos inválido para textoFactura' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    if (nombreArchivo !== undefined && typeof nombreArchivo !== 'string') {
+      console.error('Invalid nombreArchivo type:', typeof nombreArchivo);
+      return new Response(
+        JSON.stringify({ error: 'Tipo de datos inválido para nombreArchivo' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate text is not empty
+    if (!textoFactura || textoFactura.trim().length < MIN_TEXT_LENGTH) {
+      console.error('Invoice text too short or empty');
+      return new Response(
+        JSON.stringify({ error: 'El texto de factura es demasiado corto o está vacío' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate text length
+    if (textoFactura.length > MAX_TEXT_LENGTH) {
+      console.error('Invoice text too long:', textoFactura.length);
+      return new Response(
+        JSON.stringify({ error: `Texto demasiado largo (máximo ${MAX_TEXT_LENGTH} caracteres)` }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Validate filename if provided
+    if (nombreArchivo) {
+      if (nombreArchivo.length > MAX_FILENAME_LENGTH) {
+        console.error('Filename too long:', nombreArchivo.length);
+        return new Response(
+          JSON.stringify({ error: 'Nombre de archivo demasiado largo' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+      
+      // Allow alphanumeric, dots, hyphens, underscores, spaces, and common characters
+      const safeFilenamePattern = /^[a-zA-Z0-9áéíóúÁÉÍÓÚñÑ._\-\s()[\]]+$/;
+      if (!safeFilenamePattern.test(nombreArchivo)) {
+        console.error('Invalid filename characters:', nombreArchivo);
+        return new Response(
+          JSON.stringify({ error: 'Nombre de archivo contiene caracteres no permitidos' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
+    }
+
+    // ============================================
+    // PROCESS INVOICE
+    // ============================================
+    
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
       console.error('LOVABLE_API_KEY no está configurado');
       return new Response(
-        JSON.stringify({ error: 'LOVABLE_API_KEY no está configurado' }),
+        JSON.stringify({ error: 'Configuración de servicio incompleta' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log(`Procesando factura: ${nombreArchivo || 'sin nombre'}, longitud texto: ${textoFactura.length}`);
+    // Sanitize filename for logging (remove any potential log injection)
+    const safeLogFilename = (nombreArchivo || 'sin nombre').substring(0, 100).replace(/[\r\n]/g, '');
+    console.log(`Usuario ${user.id} procesando factura: ${safeLogFilename}, longitud texto: ${textoFactura.length}`);
 
     const systemPrompt = `Eres un experto en extracción de datos de facturas comerciales e invoices para importación/exportación. 
 Tu tarea es extraer información estructurada del texto de una factura.
@@ -142,7 +269,7 @@ Responde SOLO con un JSON válido con esta estructura exacta:
     try {
       extractedData = JSON.parse(jsonStr.trim());
     } catch (parseError) {
-      console.error('Error al parsear JSON de IA:', parseError, 'Contenido:', jsonStr.substring(0, 500));
+      console.error('Error al parsear JSON de IA:', parseError);
       // Intentar extraer datos básicos del texto
       extractedData = {
         awbs: [],
@@ -173,7 +300,7 @@ Responde SOLO con un JSON válido con esta estructura exacta:
   } catch (error) {
     console.error('Error en extract-invoice-data:', error);
     return new Response(
-      JSON.stringify({ error: error instanceof Error ? error.message : 'Error desconocido' }),
+      JSON.stringify({ error: 'Error interno del servidor' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
