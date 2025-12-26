@@ -383,13 +383,13 @@ async function procesarManifiesto(data: { archivo: ArrayBuffer; operador?: strin
     });
     
   } catch (error) {
-    console.error('❌ Error en procesamiento:', error);
+    devError('❌ Error en procesamiento: ' + (error instanceof Error ? error.message : 'Error desconocido'));
     
     self.postMessage({
       tipo: 'ERROR',
       payload: {
-        mensaje: error instanceof Error ? error.message : 'Error desconocido',
-        stack: error instanceof Error ? error.stack : undefined
+        mensaje: error instanceof Error ? error.message : 'Error desconocido en procesamiento'
+        // Security: Stack traces removed to prevent information leakage
       }
     });
   } finally {
