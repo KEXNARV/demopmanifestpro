@@ -44,6 +44,7 @@ import {
 } from 'lucide-react';
 import { Liquidacion, ResumenLiquidacion, CategoriaAduanera } from '@/types/aduanas';
 import { ManifestRow } from '@/types/manifest';
+import { CargaFacturas } from './CargaFacturas';
 import { Input } from '@/components/ui/input';
 import {
   PieChart,
