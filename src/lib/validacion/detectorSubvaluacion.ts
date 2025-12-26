@@ -14,6 +14,265 @@ export interface ProductoReferencia {
   precioMinimo: number;
   precioMaximo: number;
   categoria: string;
+  // Partidas arancelarias típicas del producto principal
+  partidasArancelarias?: string[];
+}
+
+// ============================================
+// PATRONES PARA DETECTAR ACCESORIOS/COMPLEMENTOS
+// vs PRODUCTOS PRINCIPALES
+// ============================================
+
+// Palabras clave que indican que es un ACCESORIO, no el producto principal
+export const PALABRAS_ACCESORIO: string[] = [
+  // Fundas y protectores
+  'case', 'cover', 'funda', 'protector', 'carcasa', 'bumper', 'skin',
+  'screen protector', 'tempered glass', 'vidrio templado', 'film', 'pelicula',
+  // Cargadores y cables
+  'charger', 'cargador', 'cable', 'cord', 'adapter', 'adaptador', 'power bank',
+  'charging', 'usb', 'lightning', 'type-c', 'type c',
+  // Soportes y montajes
+  'stand', 'holder', 'mount', 'soporte', 'base', 'dock', 'docking',
+  'tripod', 'tripode', 'grip', 'ring holder', 'pop socket', 'magsafe',
+  // Accesorios de audio
+  'earbuds case', 'airpods case', 'headphone stand', 'ear tips', 'ear cushion',
+  'replacement tips', 'silicone tips',
+  // Correas y bandas
+  'band', 'strap', 'correa', 'pulsera', 'bracelet', 'wristband',
+  // Teclados y mouse
+  'keyboard cover', 'mouse pad', 'mousepad', 'wrist rest',
+  // Bolsas y estuches
+  'sleeve', 'pouch', 'bag', 'carrying case', 'travel case', 'bolsa',
+  // Limpieza
+  'cleaning kit', 'cleaning cloth', 'limpieza',
+  // Otros accesorios
+  'sticker', 'decal', 'pegatina', 'stylus', 'pen tip', 'replacement',
+  'compatible with', 'compatible con', 'for iphone', 'for samsung', 'for ps5',
+  'for playstation', 'for xbox', 'for nintendo', 'para iphone', 'para samsung'
+];
+
+// Palabras clave que indican que es un JUEGO/SOFTWARE, no la consola
+export const PALABRAS_JUEGO_SOFTWARE: string[] = [
+  // Juegos
+  'game', 'juego', 'videogame', 'videojuego',
+  // Títulos de juegos conocidos
+  'ea sports', 'fifa', 'nba 2k', 'call of duty', 'cod', 'madden', 'nfl',
+  'grand theft auto', 'gta', 'assassin\'s creed', 'resident evil', 'zelda',
+  'mario', 'pokemon', 'fortnite', 'minecraft', 'spider-man', 'spiderman',
+  'god of war', 'horizon', 'the last of us', 'uncharted', 'halo', 'forza',
+  'mortal kombat', 'street fighter', 'tekken', 'final fantasy', 'fc 24', 'fc 25', 'fc 26',
+  // Software
+  'software', 'program', 'subscription', 'digital code', 'download code',
+  'dlc', 'season pass', 'expansion', 'addon', 'add-on',
+  // Películas/Media
+  'blu-ray', 'bluray', 'dvd', 'movie', 'film', 'pelicula', 'serie'
+];
+
+// Partidas arancelarias de ACCESORIOS (no electrónicos principales)
+export const PARTIDAS_ACCESORIOS: string[] = [
+  '3926', // Artículos de plástico
+  '4202', // Estuches, fundas, bolsas
+  '4205', // Artículos de cuero
+  '6307', // Artículos textiles confeccionados
+  '8504', // Cargadores, adaptadores
+  '8544', // Cables
+  '9113', // Correas de reloj
+];
+
+// Partidas arancelarias de JUEGOS/SOFTWARE
+export const PARTIDAS_JUEGOS: string[] = [
+  '8523', // Discos, software, juegos
+  '4911', // Impresos, cartas de juego
+  '9504', // Videojuegos (software)
+];
+
+// Partidas arancelarias de PRODUCTOS ELECTRÓNICOS PRINCIPALES
+export const PARTIDAS_ELECTRONICOS_PRINCIPALES: string[] = [
+  '8517', // Teléfonos, smartphones
+  '8471', // Computadoras, laptops, tablets
+  '8528', // Monitores, TVs
+  '9504', // Consolas de videojuegos (hardware)
+  '8519', // Reproductores de audio
+  '9101', '9102', // Relojes
+  '9006', // Cámaras fotográficas
+  '8525', // Cámaras de video, drones
+];
+
+/**
+ * Detecta si la descripción indica un accesorio en lugar del producto principal
+ */
+export function esAccesorio(descripcion: string, partidaArancelaria?: string): {
+  esAccesorio: boolean;
+  tipoAccesorio: 'funda' | 'cargador' | 'cable' | 'juego' | 'software' | 'otro' | null;
+  productoCompatible: string | null;
+  confianza: number;
+} {
+  const descripcionLower = descripcion.toLowerCase();
+  
+  // Verificar por partida arancelaria primero (más confiable)
+  if (partidaArancelaria) {
+    const partidaBase = partidaArancelaria.substring(0, 4);
+    
+    // Si la partida es de accesorios, es definitivamente un accesorio
+    if (PARTIDAS_ACCESORIOS.some(p => partidaArancelaria.startsWith(p))) {
+      return {
+        esAccesorio: true,
+        tipoAccesorio: detectarTipoAccesorio(descripcionLower),
+        productoCompatible: detectarProductoCompatible(descripcionLower),
+        confianza: 0.95
+      };
+    }
+    
+    // Si la partida es de juegos/software
+    if (PARTIDAS_JUEGOS.some(p => partidaArancelaria.startsWith(p))) {
+      return {
+        esAccesorio: true,
+        tipoAccesorio: 'juego',
+        productoCompatible: detectarProductoCompatible(descripcionLower),
+        confianza: 0.95
+      };
+    }
+    
+    // Si la partida es de electrónicos principales, verificar descripción
+    if (PARTIDAS_ELECTRONICOS_PRINCIPALES.some(p => partidaArancelaria.startsWith(p))) {
+      // Aún así verificar descripción por si tiene palabras de accesorio
+      const tienePatronAccesorio = PALABRAS_ACCESORIO.some(palabra => 
+        descripcionLower.includes(palabra.toLowerCase())
+      );
+      
+      if (tienePatronAccesorio) {
+        // Partida de electrónico pero descripción de accesorio = revisar
+        return {
+          esAccesorio: true,
+          tipoAccesorio: detectarTipoAccesorio(descripcionLower),
+          productoCompatible: detectarProductoCompatible(descripcionLower),
+          confianza: 0.7 // Menor confianza porque hay conflicto
+        };
+      }
+    }
+  }
+  
+  // Verificar palabras clave de accesorio en descripción
+  const palabrasAccesorioEncontradas = PALABRAS_ACCESORIO.filter(palabra =>
+    descripcionLower.includes(palabra.toLowerCase())
+  );
+  
+  if (palabrasAccesorioEncontradas.length > 0) {
+    // Más palabras de accesorio = más confianza
+    const confianza = Math.min(0.5 + (palabrasAccesorioEncontradas.length * 0.15), 0.9);
+    
+    return {
+      esAccesorio: true,
+      tipoAccesorio: detectarTipoAccesorio(descripcionLower),
+      productoCompatible: detectarProductoCompatible(descripcionLower),
+      confianza
+    };
+  }
+  
+  // Verificar palabras clave de juego/software
+  const palabrasJuegoEncontradas = PALABRAS_JUEGO_SOFTWARE.filter(palabra =>
+    descripcionLower.includes(palabra.toLowerCase())
+  );
+  
+  if (palabrasJuegoEncontradas.length > 0) {
+    // Si menciona consola pero también tiene palabras de juego
+    const mencionaConsola = descripcionLower.includes('playstation') || 
+                           descripcionLower.includes('ps5') ||
+                           descripcionLower.includes('xbox') ||
+                           descripcionLower.includes('nintendo') ||
+                           descripcionLower.includes('switch');
+    
+    const esTituloJuego = palabrasJuegoEncontradas.some(p => 
+      ['ea sports', 'fifa', 'nba 2k', 'call of duty', 'madden', 'fc 24', 'fc 25', 'fc 26',
+       'zelda', 'mario', 'pokemon', 'god of war', 'spider-man', 'forza', 'halo'].includes(p)
+    );
+    
+    if (mencionaConsola && esTituloJuego) {
+      return {
+        esAccesorio: true,
+        tipoAccesorio: 'juego',
+        productoCompatible: detectarProductoCompatible(descripcionLower),
+        confianza: 0.9
+      };
+    }
+  }
+  
+  return {
+    esAccesorio: false,
+    tipoAccesorio: null,
+    productoCompatible: null,
+    confianza: 0
+  };
+}
+
+/**
+ * Detecta el tipo de accesorio basado en la descripción
+ */
+function detectarTipoAccesorio(descripcion: string): 'funda' | 'cargador' | 'cable' | 'juego' | 'software' | 'otro' {
+  if (/case|cover|funda|protector|carcasa|bumper|skin/i.test(descripcion)) {
+    return 'funda';
+  }
+  if (/charger|cargador|power bank|charging/i.test(descripcion)) {
+    return 'cargador';
+  }
+  if (/cable|cord|lightning|usb|type-c/i.test(descripcion)) {
+    return 'cable';
+  }
+  if (/game|juego|ea sports|fifa|nba|call of duty|fc 2[456]/i.test(descripcion)) {
+    return 'juego';
+  }
+  if (/software|program|subscription|digital code/i.test(descripcion)) {
+    return 'software';
+  }
+  return 'otro';
+}
+
+/**
+ * Detecta para qué producto es el accesorio
+ */
+function detectarProductoCompatible(descripcion: string): string | null {
+  // iPhones
+  const iphoneMatch = descripcion.match(/iphone\s*(\d+)\s*(pro\s*max|pro|plus)?/i);
+  if (iphoneMatch) {
+    return `iPhone ${iphoneMatch[1]}${iphoneMatch[2] ? ' ' + iphoneMatch[2] : ''}`.trim();
+  }
+  
+  // Samsung Galaxy
+  const galaxyMatch = descripcion.match(/galaxy\s*(s\d+|z\s*fold|z\s*flip|a\d+)/i);
+  if (galaxyMatch) {
+    return `Samsung Galaxy ${galaxyMatch[1]}`;
+  }
+  
+  // PlayStation
+  if (/playstation\s*5|ps5/i.test(descripcion)) return 'PlayStation 5';
+  if (/playstation\s*4|ps4/i.test(descripcion)) return 'PlayStation 4';
+  
+  // Xbox
+  if (/xbox\s*series\s*x/i.test(descripcion)) return 'Xbox Series X';
+  if (/xbox\s*series\s*s/i.test(descripcion)) return 'Xbox Series S';
+  
+  // Nintendo
+  if (/nintendo\s*switch/i.test(descripcion)) return 'Nintendo Switch';
+  
+  // MacBook
+  const macMatch = descripcion.match(/macbook\s*(pro|air)?\s*(\d+)?/i);
+  if (macMatch) {
+    return `MacBook${macMatch[1] ? ' ' + macMatch[1] : ''}${macMatch[2] ? ' ' + macMatch[2] + '"' : ''}`.trim();
+  }
+  
+  // iPad
+  const ipadMatch = descripcion.match(/ipad\s*(pro|air|mini)?/i);
+  if (ipadMatch) {
+    return `iPad${ipadMatch[1] ? ' ' + ipadMatch[1] : ''}`.trim();
+  }
+  
+  // Apple Watch
+  if (/apple\s*watch|iwatch/i.test(descripcion)) return 'Apple Watch';
+  
+  // AirPods
+  if (/airpods/i.test(descripcion)) return 'AirPods';
+  
+  return null;
 }
 
 export interface ResultadoSubvaluacion {
@@ -157,10 +416,13 @@ const UMBRAL_SUBVALUACION_SOSPECHOSA = 0.7; // 70%
 
 /**
  * Analiza un paquete para detectar subvaluación
+ * Incluye detección inteligente de accesorios vs productos principales
  */
 export function analizarSubvaluacion(paquete: ManifestRow): ResultadoSubvaluacion {
   const descripcionLower = paquete.description?.toLowerCase() || '';
   const valorDeclarado = paquete.valueUSD || 0;
+  // Obtener partida arancelaria si está disponible
+  const partidaArancelaria = (paquete as any).hsCode || (paquete as any).fraccionArancelaria || (paquete as any).tariffCode || '';
   
   // PRIMERO: Verificar si viene de fuente confiable (Amazon, eBay, etc.)
   // El valor de estos marketplaces NO es manipulado por el consignatario
@@ -180,6 +442,32 @@ export function analizarSubvaluacion(paquete: ManifestRow): ResultadoSubvaluacio
     };
   }
   
+  // SEGUNDO: Verificar si es un ACCESORIO o JUEGO (no el producto principal)
+  const deteccionAccesorio = esAccesorio(paquete.description || '', partidaArancelaria);
+  
+  if (deteccionAccesorio.esAccesorio && deteccionAccesorio.confianza >= 0.6) {
+    const tipoTexto = {
+      'funda': 'Funda/Estuche',
+      'cargador': 'Cargador/Adaptador',
+      'cable': 'Cable/Conector',
+      'juego': 'Videojuego/Software',
+      'software': 'Software/Digital',
+      'otro': 'Accesorio'
+    }[deteccionAccesorio.tipoAccesorio || 'otro'];
+    
+    return {
+      paqueteId: paquete.id,
+      trackingNumber: paquete.trackingNumber,
+      descripcion: paquete.description,
+      valorDeclarado,
+      estado: 'OK',
+      nivelAlerta: 'info',
+      mensaje: `✅ Identificado como ${tipoTexto}${deteccionAccesorio.productoCompatible ? ` para ${deteccionAccesorio.productoCompatible}` : ''} - No es el producto principal.`,
+      accionRequerida: 'Ninguna - es un accesorio/complemento',
+      bloqueado: false
+    };
+  }
+  
   // Buscar producto en la base de referencia
   let productoEncontrado: ProductoReferencia | null = null;
   
@@ -193,6 +481,25 @@ export function analizarSubvaluacion(paquete: ManifestRow): ResultadoSubvaluacio
         break;
       }
     }
+  }
+  
+  // Si encontramos un producto de alto valor pero es un accesorio con baja confianza, verificar más
+  if (productoEncontrado && deteccionAccesorio.esAccesorio && deteccionAccesorio.confianza < 0.6) {
+    // Alerta de posible confusión - revisar manualmente
+    return {
+      paqueteId: paquete.id,
+      trackingNumber: paquete.trackingNumber,
+      descripcion: paquete.description,
+      valorDeclarado,
+      estado: 'REVISION_MANUAL',
+      productoDetectado: productoEncontrado.nombreProducto,
+      precioReferenciaMin: productoEncontrado.precioMinimo,
+      precioReferenciaMax: productoEncontrado.precioMaximo,
+      nivelAlerta: 'warning',
+      mensaje: `⚠️ Posible ${deteccionAccesorio.tipoAccesorio || 'accesorio'} para ${deteccionAccesorio.productoCompatible || productoEncontrado.nombreProducto}. Verificar si es el producto o un accesorio.`,
+      accionRequerida: 'Verificar descripción - puede ser accesorio o producto principal',
+      bloqueado: false
+    };
   }
   
   // Si no se encontró producto de referencia, aprobar
