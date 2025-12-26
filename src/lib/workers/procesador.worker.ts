@@ -829,6 +829,57 @@ function calcularEstadisticasCompletas(
 }
 
 // ============================================
+// CONSTANTES DE VALIDACIÓN
+// ============================================
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const MIN_FILE_SIZE = 100; // 100 bytes minimum for valid file
+
+// XLSX magic bytes: PK (ZIP format since XLSX is ZIP-based)
+const XLSX_MAGIC_BYTES = [0x50, 0x4B, 0x03, 0x04];
+
+// ============================================
+// FUNCIONES DE VALIDACIÓN DE ENTRADA
+// ============================================
+
+function validarArchivoXLSX(archivo: ArrayBuffer): { valido: boolean; error?: string } {
+  // Check file size
+  if (archivo.byteLength > MAX_FILE_SIZE) {
+    return { valido: false, error: 'Archivo demasiado grande (máximo 50MB)' };
+  }
+  
+  if (archivo.byteLength < MIN_FILE_SIZE) {
+    return { valido: false, error: 'Archivo demasiado pequeño o vacío' };
+  }
+  
+  // Check XLSX magic bytes (ZIP format)
+  const header = new Uint8Array(archivo.slice(0, 4));
+  const isXLSX = XLSX_MAGIC_BYTES.every((byte, index) => header[index] === byte);
+  
+  if (!isXLSX) {
+    return { valido: false, error: 'Formato de archivo no válido. Solo se aceptan archivos Excel (.xlsx)' };
+  }
+  
+  return { valido: true };
+}
+
+function validarPayload(payload: any): { valido: boolean; error?: string } {
+  if (!payload) {
+    return { valido: false, error: 'Datos de entrada no proporcionados' };
+  }
+  
+  if (!payload.archivo) {
+    return { valido: false, error: 'Falta el archivo para procesar' };
+  }
+  
+  if (!(payload.archivo instanceof ArrayBuffer)) {
+    return { valido: false, error: 'Formato de archivo inválido' };
+  }
+  
+  return { valido: true };
+}
+
+// ============================================
 // MANEJADOR DE MENSAJES DEL WORKER
 // ============================================
 
@@ -837,8 +888,17 @@ self.onmessage = async (event: MessageEvent<MensajeWorker>) => {
 
   switch (tipo) {
     case 'PROCESAR_MANIFIESTO':
-      if (!payload?.archivo) {
-        enviarError('Falta el archivo para procesar');
+      // Validate payload structure
+      const validacionPayload = validarPayload(payload);
+      if (!validacionPayload.valido) {
+        enviarError(validacionPayload.error || 'Error de validación');
+        return;
+      }
+
+      // Validate file format and size
+      const validacionArchivo = validarArchivoXLSX(payload.archivo);
+      if (!validacionArchivo.valido) {
+        enviarError(validacionArchivo.error || 'Error de validación de archivo');
         return;
       }
 
@@ -848,8 +908,8 @@ self.onmessage = async (event: MessageEvent<MensajeWorker>) => {
           operador: payload.operador
         });
       } catch (error) {
-        const mensaje = error instanceof Error ? error.message : 'Error desconocido';
-        enviarError(mensaje);
+        // Use safe error message without exposing internal details
+        enviarError('Error procesando el archivo. Verifique que sea un archivo Excel válido.');
       }
       break;
 
