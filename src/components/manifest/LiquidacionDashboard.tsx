@@ -578,22 +578,33 @@ export function LiquidacionDashboard({
                           {liquidaciones
                             .filter(l => l.hsCode === '9999.99.99')
                             .slice(0, 20)
-                            .map((liq) => (
-                              <div 
-                                key={liq.id}
-                                className="p-3 bg-blue-50 rounded-lg border border-blue-200"
-                              >
-                                <div className="flex items-center justify-between">
-                                  <span className="font-mono font-medium">{liq.numeroGuia}</span>
-                                  <Badge variant="outline" className="text-blue-600 border-blue-300">
-                                    HS: {liq.hsCode}
-                                  </Badge>
+                            .map((liq) => {
+                              // Buscar la descripción del paquete original
+                              const paqueteOriginal = paquetes?.find(
+                                p => p.trackingNumber === liq.numeroGuia
+                              );
+                              const descripcionProducto = paqueteOriginal?.description || liq.descripcionArancelaria || 'Sin descripción';
+                              
+                              return (
+                                <div 
+                                  key={liq.id}
+                                  className="p-3 bg-blue-50 rounded-lg border border-blue-200"
+                                >
+                                  <div className="flex items-center justify-between">
+                                    <span className="font-mono font-medium">{liq.numeroGuia}</span>
+                                    <Badge variant="outline" className="text-blue-600 border-blue-300">
+                                      HS: {liq.hsCode}
+                                    </Badge>
+                                  </div>
+                                  <p className="text-sm font-medium text-foreground mt-2">
+                                    {descripcionProducto}
+                                  </p>
+                                  <p className="text-xs text-blue-700 mt-1">
+                                    Tasas estándar aplicadas (DAI: 15%, ITBMS: 7%)
+                                  </p>
                                 </div>
-                                <p className="text-sm text-blue-700 mt-1">
-                                  Tasas estándar aplicadas (DAI: 15%, ITBMS: 7%)
-                                </p>
-                              </div>
-                            ))}
+                              );
+                            })}
                         </div>
                       </AccordionContent>
                     </AccordionItem>
