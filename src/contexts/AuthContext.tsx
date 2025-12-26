@@ -219,11 +219,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  // NOTE: Client-side checks for UX only.
+  // Security is enforced server-side via RLS policies and database function checks.
+  // These functions control UI visibility but do not provide security boundaries.
   const hasPermission = (permission: Permission): boolean => {
     if (!role) return false;
     return ROLE_PERMISSIONS[role].includes(permission);
   };
 
+  // NOTE: Client-side role check for UI purposes only.
+  // Actual authorization is enforced by RLS policies and has_role() database function.
   const hasRole = (checkRole: AppRole): boolean => {
     return role === checkRole;
   };

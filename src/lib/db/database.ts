@@ -113,8 +113,9 @@ const STORAGE_KEY = 'manifiestos_db';
 const FILAS_KEY = 'filas_db';
 const CONSIGNATARIOS_KEY = 'consignatarios_db';
 
+// Generar ID único usando Web Crypto API (cryptographically secure)
 function generarId(): string {
-  return `MAN-${Date.now()}-${Math.random().toString(36).substring(2, 9).toUpperCase()}`;
+  return `MAN-${Date.now()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
 }
 
 // ============================================
@@ -396,7 +397,7 @@ function agruparConsignatarios(
     
     if (!grupos[clave]) {
       grupos[clave] = {
-        id: `CON-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        id: `CON-${Date.now()}-${crypto.randomUUID().slice(0, 4).toUpperCase()}`,
         manifiestoId,
         nombre: fila.destinatario,
         identificacion: fila.identificacion,

@@ -24,14 +24,16 @@ const devSection = (title: string) => {
 };
 
 // ============================================
-// GENERADOR DE IDs
+// GENERADOR DE IDs (Cryptographically Secure)
 // ============================================
 
 function nanoid(size = 21): string {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const randomValues = new Uint8Array(size);
+  crypto.getRandomValues(randomValues);
   let id = '';
   for (let i = 0; i < size; i++) {
-    id += alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+    id += alphabet.charAt(randomValues[i] % alphabet.length);
   }
   return id;
 }
