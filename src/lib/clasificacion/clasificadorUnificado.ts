@@ -38,50 +38,80 @@ export interface ClasificacionResult {
   umbralAplicado?: number;
 }
 
+// ============================================
+// EXCLUSIONES - Palabras que invalidan clasificación farmacéutica
+// ============================================
+const EXCLUSIONES_MEDICAMENTOS: string[] = [
+  // Alimentos
+  'ice cream', 'helado', 'cream cheese', 'queso crema', 'sour cream',
+  'whipped cream', 'crema batida', 'cream puff', 'coffee cream',
+  'chocolate cream', 'cream filling', 'cream soda',
+  
+  // Cosméticos y cuidado personal
+  'face cream', 'crema facial', 'hand cream', 'crema de manos',
+  'body cream', 'crema corporal', 'night cream', 'day cream',
+  'eye cream', 'anti aging', 'moisturizing cream', 'sunscreen',
+  'protector solar', 'makeup', 'maquillaje', 'lipstick', 'lip gloss',
+  'nail polish', 'esmalte', 'mascara', 'foundation', 'concealer',
+  'eyeshadow', 'blush', 'bronzer', 'perfume', 'cologne', 'fragrance',
+  'shampoo', 'champu', 'conditioner', 'acondicionador',
+  'deodorant', 'desodorante', 'toothpaste', 'pasta dental',
+  'hair gel', 'styling gel', 'shower gel', 'shaving cream',
+  
+  // Suplementos deportivos (no farmacéuticos)
+  'whey protein', 'protein powder', 'proteina en polvo',
+  'mass gainer', 'pre workout', 'bcaa', 'creatine powder',
+  'protein bar', 'energy bar',
+  
+  // Electrónica
+  'tablet computer', 'tablet pc', 'android tablet', 'ipad',
+  'graphics tablet', 'digital tablet', 'drawing tablet',
+  
+  // Otros no farmacéuticos
+  'vitamin water', 'agua vitaminada', 'energy drink',
+  'gummy bear', 'gummy candy', 'gomitas', 'candy vitamins',
+  'pet vitamin', 'pet supplement', 'dog vitamin', 'cat vitamin',
+  'cream color', 'color crema', 'cream white', 'off white',
+  'contact lens solution'
+];
+
 // Base de datos de palabras clave por categoría de producto
 const CATEGORIAS_PRODUCTO: Record<CategoriaProducto, string[]> = {
   medicamentos: [
-    // Términos generales
-    'medicine', 'medication', 'drug', 'medicamento', 'medicamentos', 'farmaco', 'fármaco',
-    'pharmaceutical', 'pharma', 'farma', 'rx', 'prescription', 'receta',
-    // Formas farmacéuticas
-    'pill', 'pills', 'tablet', 'tablets', 'capsule', 'capsules', 'capsula', 'cápsula',
-    'pastilla', 'pastillas', 'tableta', 'tabletas', 'gragea', 'grageas',
-    'syrup', 'jarabe', 'suspension', 'suspensión', 'injection', 'inyeccion', 'inyección',
-    'cream', 'crema', 'ointment', 'pomada', 'ungüento', 'gel', 'drops', 'gotas',
-    'inhaler', 'inhalador', 'patch', 'parche', 'suppository', 'supositorio',
-    // Antibióticos
-    'antibiotic', 'antibiotico', 'antibiótico', 'amoxicillin', 'amoxicilina',
-    'azithromycin', 'azitromicina', 'ciprofloxacin', 'ciprofloxacino',
-    'metronidazole', 'metronidazol', 'penicillin', 'penicilina', 'cephalexin', 'cefalexina',
-    // Analgésicos y antiinflamatorios
-    'ibuprofen', 'ibuprofeno', 'paracetamol', 'acetaminophen', 'acetaminofen',
-    'aspirin', 'aspirina', 'naproxen', 'naproxeno', 'diclofenac', 'diclofenaco',
-    'ketorolac', 'ketorolaco', 'tramadol', 'morphine', 'morfina', 'codeine', 'codeina', 'codeína',
-    // Antihipertensivos y cardiovasculares
+    // Términos de ALTA CONFIANZA (inequívocos)
+    'medicine', 'medication', 'pharmaceutical', 'prescription drug',
+    'medicamento', 'medicamentos', 'farmaco', 'fármaco',
+    
+    // Antibióticos específicos
+    'amoxicillin', 'amoxicilina', 'azithromycin', 'azitromicina',
+    'ciprofloxacin', 'ciprofloxacino', 'metronidazole', 'metronidazol',
+    'penicillin', 'penicilina', 'cephalexin', 'cefalexina',
+    
+    // Analgésicos con receta
+    'tramadol', 'morphine', 'morfina', 'codeine', 'codeina',
+    'oxycodone', 'oxicodona', 'hydrocodone', 'hidrocodona',
+    
+    // Cardiovasculares
     'losartan', 'enalapril', 'lisinopril', 'amlodipine', 'amlodipino',
-    'metoprolol', 'atenolol', 'carvedilol', 'hydrochlorothiazide', 'hidroclorotiazida',
-    'furosemide', 'furosemida', 'spironolactone', 'espironolactona',
+    'metoprolol', 'atenolol', 'carvedilol', 'furosemide', 'furosemida',
+    
     // Diabetes
-    'metformin', 'metformina', 'insulin', 'insulina', 'glibenclamide', 'glibenclamida',
-    'glimepiride', 'glimepirida', 'sitagliptin', 'sitagliptina',
+    'metformin', 'metformina', 'insulin', 'insulina', 'glibenclamide',
+    'sitagliptin', 'sitagliptina',
+    
     // Gastrointestinales
-    'omeprazole', 'omeprazol', 'pantoprazole', 'pantoprazol', 'ranitidine', 'ranitidina',
-    'metoclopramide', 'metoclopramida', 'loperamide', 'loperamida',
-    // Antihistamínicos y antialérgicos
-    'loratadine', 'loratadina', 'cetirizine', 'cetirizina', 'diphenhydramine', 'difenhidramina',
-    'chlorpheniramine', 'clorfenamina', 'fexofenadine', 'fexofenadina',
+    'omeprazole', 'omeprazol', 'pantoprazole', 'pantoprazol',
+    
     // Psicotrópicos
-    'alprazolam', 'diazepam', 'clonazepam', 'lorazepam', 'sertraline', 'sertralina',
-    'fluoxetine', 'fluoxetina', 'escitalopram', 'quetiapine', 'quetiapina',
+    'alprazolam', 'diazepam', 'clonazepam', 'lorazepam',
+    'sertraline', 'sertralina', 'fluoxetine', 'fluoxetina',
+    
     // Hormonales
-    'levothyroxine', 'levotiroxina', 'prednisone', 'prednisona', 'prednisolone', 'prednisolona',
-    'dexamethasone', 'dexametasona', 'hydrocortisone', 'hidrocortisona',
-    // Anticoagulantes
-    'warfarin', 'warfarina', 'heparin', 'heparina', 'rivaroxaban', 'apixaban',
-    // Otros comunes
-    'sildenafil', 'tadalafil', 'finasteride', 'minoxidil', 'clotrimazole', 'clotrimazol',
-    'fluconazole', 'fluconazol', 'acyclovir', 'aciclovir', 'oseltamivir'
+    'levothyroxine', 'levotiroxina', 'prednisone', 'prednisona',
+    'dexamethasone', 'dexametasona',
+    
+    // Antivirales
+    'acyclovir', 'aciclovir', 'oseltamivir', 'remdesivir'
   ],
   suplementos: [
     'supplement', 'supplements', 'suplemento', 'suplementos', 'suplemento alimenticio',
@@ -319,7 +349,20 @@ export class ClasificadorUnificado {
   }
   
   /**
+   * Verifica si la descripción está excluida de una categoría
+   */
+  private static esExcluido(descripcion: string): boolean {
+    for (const exclusion of EXCLUSIONES_MEDICAMENTOS) {
+      if (descripcion.includes(exclusion.toLowerCase())) {
+        return true;
+      }
+    }
+    return false;
+  }
+  
+  /**
    * Clasificación por tipo de producto (para organización)
+   * MEJORA: Incluye verificación de exclusiones para medicamentos
    */
   private static clasificarPorProducto(descripcion: string): CategoriaProducto {
     // Prioridad: categorías más específicas primero
@@ -339,6 +382,14 @@ export class ClasificadorUnificado {
     
     for (const categoria of prioridad) {
       const palabras = CATEGORIAS_PRODUCTO[categoria];
+      
+      // Para medicamentos, verificar exclusiones primero
+      if (categoria === 'medicamentos') {
+        if (this.esExcluido(descripcion)) {
+          continue; // Saltar medicamentos si está excluido
+        }
+      }
+      
       if (palabras.some(palabra => descripcion.includes(palabra))) {
         return categoria;
       }

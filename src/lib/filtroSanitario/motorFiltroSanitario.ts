@@ -1,6 +1,7 @@
 // ============================================
 // MOTOR DE FILTRO SANITARIO MINSA
 // Dirección Nacional de Farmacia y Drogas
+// MEJORA: Clasificación basada en HTS + contexto
 // ============================================
 
 import { ManifestRow } from '@/types/manifest';
@@ -11,7 +12,10 @@ import {
   DocumentoRequerido,
   AlertaSanitaria,
   ConfiguracionFiltro,
-  KEYWORDS_MINSA,
+  KEYWORDS_MINSA_ALTA_CONFIANZA,
+  KEYWORDS_MINSA_CONTEXTO,
+  EXCLUSIONES_FARMA,
+  HTS_FARMACEUTICOS,
   KEYWORDS_RECETA_OBLIGATORIA,
   KEYWORDS_PROHIBIDOS,
   INDICADORES_CANTIDAD_COMERCIAL,
@@ -128,12 +132,53 @@ export class MotorFiltroSanitario {
     return regex.test(descripcion);
   }
 
+  /**
+   * MEJORA: Verificar si la descripción está excluida de clasificación farmacéutica
+   */
+  private esExcluido(descripcion: string): boolean {
+    const descLower = descripcion.toLowerCase();
+    for (const exclusion of EXCLUSIONES_FARMA) {
+      if (descLower.includes(exclusion.toLowerCase())) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * MEJORA: Verificar si el código HTS indica farmacéutico (Capítulo 30)
+   */
+  private esHTSFarmaceutico(hsCode?: string): boolean {
+    if (!hsCode) return false;
+    const codigo = hsCode.replace(/\./g, '').substring(0, 4);
+    return HTS_FARMACEUTICOS.some(hts => codigo.startsWith(hts));
+  }
+
+  /**
+   * MEJORA: Detección mejorada de keywords farmacéuticas
+   * Usa alta confianza + contexto + exclusiones
+   */
   private detectarKeywords(descripcion: string): string[] {
+    // Si está excluido, no detectar keywords
+    if (this.esExcluido(descripcion)) {
+      return [];
+    }
+
     const encontradas: string[] = [];
     
-    for (const keyword of KEYWORDS_MINSA) {
+    // 1. Buscar keywords de alta confianza (siempre válidas)
+    for (const keyword of KEYWORDS_MINSA_ALTA_CONFIANZA) {
       if (this.matchPalabraCompleta(descripcion, keyword)) {
         encontradas.push(keyword);
+      }
+    }
+    
+    // 2. Solo si encontramos alta confianza, buscar contexto adicional
+    if (encontradas.length > 0) {
+      for (const keyword of KEYWORDS_MINSA_CONTEXTO) {
+        if (this.matchPalabraCompleta(descripcion, keyword)) {
+          encontradas.push(keyword);
+        }
       }
     }
     
