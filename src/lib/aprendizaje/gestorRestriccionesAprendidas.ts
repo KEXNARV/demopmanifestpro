@@ -42,8 +42,8 @@ export interface RegistroAprendizaje {
   metadatos?: Record<string, any>;
 }
 
-const STORAGE_KEY_RESTRICCIONES = 'pasarex_restricciones_aprendidas';
-const STORAGE_KEY_LOG = 'pasarex_log_aprendizaje';
+const STORAGE_KEY_RESTRICCIONES = 'ipl_customs_restricciones_aprendidas';
+const STORAGE_KEY_LOG = 'ipl_customs_log_aprendizaje';
 
 /**
  * Gestor de restricciones aprendidas

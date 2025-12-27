@@ -9,7 +9,7 @@ import { devLog, devError, devSuccess } from '@/lib/logger';
 import { safeJsonParseArray } from '@/lib/utils/safeJsonParse';
 import { ManifiestoGuardadoSchema, FilaConManifiestoSchema, ConsignatarioGuardadoSchema } from '@/lib/schemas/storageSchemas';
 
-const DB_NAME = 'pasarex_db';
+const DB_NAME = 'ipl_customs_ai_db';
 const DB_VERSION = 2;
 
 export interface DBStores {

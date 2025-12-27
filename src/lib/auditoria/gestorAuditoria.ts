@@ -38,7 +38,7 @@ export interface RegistroAuditoria {
 // Caché en memoria para lecturas rápidas
 let cacheRegistros: RegistroAuditoria[] = [];
 let cacheInicializado = false;
-let ultimoHash: string = 'GENESIS_BLOCK_PASAREX_ADUANAS_2024';
+let ultimoHash: string = 'GENESIS_BLOCK_IPL_CUSTOMS_AI_2024';
 let ultimaSecuencia: number = 0;
 
 const VERSION_AUDITORIA = '3.0';
@@ -391,7 +391,7 @@ export class GestorAuditoria {
       registros.sort((a, b) => (a.numeroSecuencia || 0) - (b.numeroSecuencia || 0));
       
       const errores: string[] = [];
-      let hashEsperado = 'GENESIS_BLOCK_PASAREX_ADUANAS_2024';
+      let hashEsperado = 'GENESIS_BLOCK_IPL_CUSTOMS_AI_2024';
       
       for (const registro of registros) {
         // Verificar que el hash anterior coincide

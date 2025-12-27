@@ -1,8 +1,8 @@
 import { MapPin, History, Home } from 'lucide-react';
 import { Link, useLocation } from 'react-router-dom';
-import { COMPANY_INFO, DEVELOPER_INFO } from '@/lib/companyConfig';
+import { COMPANY_INFO, DEVELOPER_INFO, PLATFORM_INFO } from '@/lib/companyConfig';
 import { Button } from '@/components/ui/button';
-import logoPassarex from '@/assets/logo-pasarex.png';
+import logoIPL from '@/assets/logo-ipl.png';
 
 export function Header() {
   const location = useLocation();
@@ -13,14 +13,18 @@ export function Header() {
       <div className="container mx-auto px-4 py-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <Link to="/">
+            <Link to="/" className="flex items-center gap-3">
               <img 
-                src={logoPassarex} 
-                alt="Pasarex - Logística de confianza" 
+                src={logoIPL} 
+                alt="IPL Customs AI - Intelligent Broker" 
                 className="h-10 md:h-12 w-auto"
               />
+              <div className="hidden sm:flex flex-col">
+                <span className="text-sm font-bold text-primary">Customs AI</span>
+                <span className="text-[10px] text-muted-foreground">Intelligent Broker</span>
+              </div>
             </Link>
-            <nav className="hidden sm:flex items-center gap-1">
+            <nav className="hidden sm:flex items-center gap-1 ml-4">
               <Link to="/">
                 <Button 
                   variant={!isHistorial ? 'secondary' : 'ghost'} 
@@ -49,7 +53,7 @@ export function Header() {
               <span>{COMPANY_INFO.location}</span>
             </div>
             <p className="text-xs text-muted-foreground/70">
-              Desarrollado por {DEVELOPER_INFO.name} • v{DEVELOPER_INFO.version}
+              {PLATFORM_INFO.name} v{PLATFORM_INFO.version} • {DEVELOPER_INFO.name}
             </p>
           </div>
         </div>
