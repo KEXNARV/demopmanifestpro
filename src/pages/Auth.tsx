@@ -12,8 +12,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Loader2, Package, AlertCircle, CheckCircle } from 'lucide-react';
+import { Loader2, AlertCircle, CheckCircle } from 'lucide-react';
 import { z } from 'zod';
+import { PLATFORM_INFO } from '@/lib/companyConfig';
+import logoIPL from '@/assets/logo-ipl.png';
 
 // Esquemas de validación
 const loginSchema = z.object({
@@ -148,13 +150,15 @@ const Auth: React.FC = () => {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <div className="p-3 bg-primary/10 rounded-full">
-              <Package className="h-8 w-8 text-primary" />
-            </div>
+            <img 
+              src={logoIPL} 
+              alt="IPL Customs AI" 
+              className="h-16 w-auto"
+            />
           </div>
-          <CardTitle className="text-2xl">PASAREX Aduanas</CardTitle>
+          <CardTitle className="text-2xl">{PLATFORM_INFO.name}</CardTitle>
           <CardDescription>
-            Sistema de Gestión de Manifiestos y Liquidación Aduanera
+            {PLATFORM_INFO.description}
           </CardDescription>
         </CardHeader>
         

@@ -81,7 +81,7 @@ export function TableroPanelAprendizaje({ onClose }: TableroPanelAprendizajeProp
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `conocimiento-pasarex-${formatearFecha(new Date())}.json`;
+    a.download = `conocimiento-ipl-customs-${formatearFecha(new Date())}.json`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success('Conocimiento exportado correctamente');

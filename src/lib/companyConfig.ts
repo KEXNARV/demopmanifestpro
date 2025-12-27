@@ -1,9 +1,12 @@
-// Pasar Express Panama S.A. - Company Configuration
+// IPL Group S.A. - Company Configuration
+// IPL Customs AI - Intelligent Customs Broker Platform
 // Developed by DemoPerez © 2025
 
 export const COMPANY_INFO = {
-  name: 'Pasar Express Panama S.A.',
-  shortName: 'Pasar Express',
+  name: 'IPL Group S.A.',
+  shortName: 'IPL Customs AI',
+  tradeName: 'IPL Customs AI',
+  tagline: 'Intelligent Customs Broker',
   ruc: '155678901-2-2025',
   location: 'Aeropuerto Internacional de Tocumen',
   country: 'República de Panamá',
@@ -11,17 +14,24 @@ export const COMPANY_INFO = {
   district: 'Panamá',
   phone: '+507 238-4500',
   whatsapp: '+507 6500-0000',
-  email: 'operaciones@pasarexpress.pa',
-  complianceEmail: 'compliance@pasarexpress.pa',
-  infoEmail: 'info@pasarexpress.pa',
-  website: 'www.pasarexpress.pa',
+  email: 'operaciones@iplgroup.pa',
+  complianceEmail: 'compliance@iplgroup.pa',
+  infoEmail: 'info@iplgroup.pa',
+  website: 'www.iplgroup.pa',
   license: 'Agente de Carga Autorizado ANA',
+};
+
+export const PLATFORM_INFO = {
+  name: 'IPL Customs AI',
+  fullName: 'IPL Customs AI - Intelligent Broker',
+  version: '2.0',
+  description: 'Plataforma de liquidación aduanera inteligente con IA',
 };
 
 export const DEVELOPER_INFO = {
   name: 'DemoPerez',
   year: 2025,
-  version: '1.5',
+  version: '2.0',
 };
 
 export const REGULATORY_INFO = {
@@ -104,7 +114,7 @@ export const CONTACT_EMERGENCY = {
     phone: '+507 238-4000',
   },
   company: {
-    name: 'Pasar Express Panama',
+    name: COMPANY_INFO.shortName,
     phone: COMPANY_INFO.phone,
     whatsapp: COMPANY_INFO.whatsapp,
     email: COMPANY_INFO.email,
@@ -115,8 +125,8 @@ export function getComplianceDeclaration(): string[] {
   return [
     'DECLARACIÓN DE CUMPLIMIENTO REGULATORIO',
     '',
-    'Este documento ha sido generado por el Sistema de',
-    'Gestión de Manifiestos de Pasar Express Panama S.A.',
+    `Este documento ha sido generado por ${PLATFORM_INFO.name}`,
+    `plataforma de ${COMPANY_INFO.name}`,
     'en cumplimiento con las siguientes regulaciones:',
     '',
     ...REGULATORY_INFO.laws.map(law => `✓ ${law}`),
@@ -139,7 +149,8 @@ export function getCompanyFooter(): string[] {
     `${COMPANY_INFO.location}, ${COMPANY_INFO.country}`,
     `Tel: ${COMPANY_INFO.phone} | Email: ${COMPANY_INFO.infoEmail}`,
     '',
-    `Sistema desarrollado por ${DEVELOPER_INFO.name} © ${DEVELOPER_INFO.year}`,
+    `${PLATFORM_INFO.name} v${PLATFORM_INFO.version}`,
+    `Desarrollado por ${DEVELOPER_INFO.name} © ${DEVELOPER_INFO.year}`,
     'En cumplimiento con regulaciones ANA y MINSA',
     '═══════════════════════════════════════════════════════════════',
   ];

@@ -175,7 +175,7 @@ export function generarHTMLCartaRelevo(datos: DatosCartaRelevo): string {
       <p><strong>NOTA LEGAL:</strong> Este documento tiene validez únicamente para la importación 
       del paquete especificado. La falsificación o adulteración de esta declaración está penada 
       conforme al Código Penal de la República de Panamá.</p>
-      <p>Documento generado automáticamente por el Sistema de Gestión de Manifiestos - PASAREX</p>
+      <p>Documento generado automáticamente por IPL Customs AI - IPL Group S.A.</p>
       <p>Fecha y hora de generación: ${new Date().toISOString()}</p>
     </div>
   </div>

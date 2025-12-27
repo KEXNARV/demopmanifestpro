@@ -85,7 +85,7 @@ export function generarDeclaracionOficial(
     boleta_pago_resumen: boleta,
     metadata: {
       version: '1.0',
-      generado_por: 'PasaRex Customs System',
+      generado_por: 'IPL Customs AI',
       fecha_generacion: new Date().toISOString()
     }
   };
