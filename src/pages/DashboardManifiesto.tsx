@@ -18,7 +18,7 @@ import {
   Package, DollarSign, Calculator, Receipt, 
   Download, AlertTriangle, Search, Filter,
   ChevronLeft, ChevronRight, ArrowLeft, FileSpreadsheet,
-  Plane, CheckCircle2, AlertCircle, TrendingUp, Pill, Barcode
+  Plane, CheckCircle2, AlertCircle, TrendingUp, Pill, Barcode, Brain
 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import * as XLSX from 'xlsx';
@@ -51,6 +51,9 @@ import { RevisionGTIN } from '@/components/manifest/RevisionGTIN';
 import { extraerGTINsDeTexto } from '@/lib/gtin/gtinProcessor';
 import { ManifestRow } from '@/types/manifest';
 import { ConfigService } from '@/lib/config/ConfigService';
+import { useAgenteAduanal } from '@/hooks/useAgenteAduanal';
+import { PanelAgenteAduanal } from '@/components/manifest/PanelAgenteAduanal';
+import { TableroPanelAprendizaje } from '@/components/manifest/TableroPanelAprendizaje';
 
 // Colores para categorías aduaneras
 const COLORES_CATEGORIA: Record<string, string> = {
@@ -73,6 +76,9 @@ export default function DashboardManifiesto() {
   const [cargando, setCargando] = useState(true);
   const [exportando, setExportando] = useState(false);
   const [exportandoFarma, setExportandoFarma] = useState(false);
+
+  // Agente Aduanal AI
+  const agenteAduanal = useAgenteAduanal();
 
   // Filtros y paginación
   const [busqueda, setBusqueda] = useState('');
@@ -722,8 +728,12 @@ export default function DashboardManifiesto() {
           <CardTitle>Detalle de Paquetes</CardTitle>
         </CardHeader>
         <CardContent>
-          <Tabs defaultValue="loteA" className="w-full">
-            <TabsList className="grid w-full grid-cols-6 mb-4">
+          <Tabs defaultValue="agenteAI" className="w-full">
+            <TabsList className="grid w-full grid-cols-7 mb-4">
+              <TabsTrigger value="agenteAI" className="text-primary">
+                <Brain className="h-3 w-3 mr-1" />
+                Agente AI
+              </TabsTrigger>
               <TabsTrigger value="loteA">
                 Lote A ({loteA.length})
               </TabsTrigger>
@@ -743,12 +753,22 @@ export default function DashboardManifiesto() {
                 className={gtinsConProblemas > 0 ? "text-amber-600 dark:text-amber-400" : ""}
               >
                 <AlertTriangle className="h-3 w-3 mr-1" />
-                Revisión GTIN {gtinsConProblemas > 0 && `(${gtinsConProblemas})`}
+                Revisión GTIN
               </TabsTrigger>
               <TabsTrigger value="restricciones">
                 Restricciones ({conRestricciones.length})
               </TabsTrigger>
             </TabsList>
+
+            <TabsContent value="agenteAI">
+              <PanelAgenteAduanal 
+                agenteState={agenteAduanal} 
+                mawb={manifiesto?.mawb}
+              />
+              <div className="mt-6">
+                <TableroPanelAprendizaje />
+              </div>
+            </TabsContent>
 
             <TabsContent value="loteA">
               <div className="rounded-md border overflow-x-auto">

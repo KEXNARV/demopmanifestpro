@@ -15,7 +15,9 @@ import {
   ConsolidatedDelivery,
 } from '@/types/manifest';
 import { Liquidacion, ResumenLiquidacion } from '@/types/aduanas';
+// Legacy import - usar AgenteAduanalAI para nuevos desarrollos
 import { procesarLiquidaciones, generarResumenLiquidacion } from '@/lib/aduanas/motorLiquidacion';
+import { AgenteAduanalAI } from '@/lib/core/AgenteAduanalAI';
 import { 
   groupByConsignee, 
   calculateConsigneeStats, 
