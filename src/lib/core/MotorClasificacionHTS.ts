@@ -1,13 +1,14 @@
 // ============================================
 // MOTOR DE CLASIFICACIÓN HTS AI-FIRST
 // Clasificación jerárquica con validación NLP
-// Auditoría semántica de descripciones
+// Integración con Lovable AI para NLP real
 // ============================================
 
 import { ManifestRow } from '@/types/manifest';
 import { Arancel } from '@/types/aduanas';
 import { ARANCELES_PANAMA, KEYWORDS_ARANCEL, buscarArancelPorDescripcion, ARANCEL_GENERICO } from '@/lib/aduanas/arancelesData';
 import { devLog, devWarn } from '@/lib/logger';
+import { ClasificadorHTSAI, ClasificacionAIResponse } from './ClasificadorHTSAI';
 
 // ============================================
 // TÉRMINOS SENSIBLES PARA AUDITORÍA
@@ -394,7 +395,7 @@ export class MotorClasificacionHTS {
   }
   
   /**
-   * Procesa lote de paquetes
+   * Procesa lote de paquetes (síncrono - reglas locales)
    */
   static procesarLote(
     paquetes: ManifestRow[],
@@ -447,6 +448,186 @@ export class MotorClasificacionHTS {
         requierenRevision: requierenRevision.length,
         htsGenerico,
         conTerminosSensibles
+      }
+    };
+  }
+  
+  /**
+   * Procesa lote con AI (asíncrono - Lovable AI)
+   * Usa NLP real para clasificaciones más precisas
+   */
+  static async procesarLoteConAI(
+    paquetes: ManifestRow[],
+    facturasLineItems?: Map<string, string[]>,
+    onProgress?: (procesados: number, total: number) => void
+  ): Promise<{
+    clasificaciones: Map<string, ResultadoClasificacionHTS>;
+    requierenRevision: ManifestRow[];
+    estadisticas: {
+      total: number;
+      clasificadosAuto: number;
+      requierenRevision: number;
+      htsGenerico: number;
+      conTerminosSensibles: number;
+      clasificadosConAI: number;
+    };
+  }> {
+    const clasificaciones = new Map<string, ResultadoClasificacionHTS>();
+    const requierenRevision: ManifestRow[] = [];
+    
+    let clasificadosAuto = 0;
+    let htsGenerico = 0;
+    let conTerminosSensibles = 0;
+    let clasificadosConAI = 0;
+    
+    // Primero: clasificación local rápida
+    const clasificacionesLocales = this.procesarLote(paquetes, facturasLineItems);
+    
+    // Identificar cuáles necesitan AI (baja confianza o revisión)
+    const necesitanAI = paquetes.filter(p => {
+      const local = clasificacionesLocales.clasificaciones.get(p.trackingNumber);
+      return local && (local.confianzaClasificacion < 70 || local.requiereRevisionManual);
+    });
+    
+    devLog(`[MotorHTS] ${necesitanAI.length}/${paquetes.length} paquetes requieren clasificación AI`);
+    
+    // Procesar con AI los que lo necesitan
+    let procesados = 0;
+    
+    for (const paquete of paquetes) {
+      const local = clasificacionesLocales.clasificaciones.get(paquete.trackingNumber)!;
+      const lineItems = facturasLineItems?.get(paquete.trackingNumber);
+      
+      // Si la clasificación local es buena, usarla
+      if (local.confianzaClasificacion >= 70 && !local.requiereRevisionManual) {
+        clasificaciones.set(paquete.trackingNumber, local);
+        clasificadosAuto++;
+      } else {
+        // Usar AI para clasificación más precisa
+        try {
+          const respuestaAI = await ClasificadorHTSAI.clasificar({
+            descripcion: paquete.description,
+            lineItemsFactura: lineItems,
+            peso: paquete.weight,
+            valor: paquete.valueUSD
+          });
+          
+          // Combinar resultado AI con estructura local
+          const resultadoMejorado = this.combinarConAI(paquete, local, respuestaAI);
+          clasificaciones.set(paquete.trackingNumber, resultadoMejorado);
+          clasificadosConAI++;
+          
+          if (resultadoMejorado.requiereRevisionManual) {
+            requierenRevision.push(paquete);
+          } else {
+            clasificadosAuto++;
+          }
+          
+        } catch (error) {
+          devWarn(`[MotorHTS] Error AI para ${paquete.trackingNumber}, usando local`);
+          clasificaciones.set(paquete.trackingNumber, local);
+          if (local.requiereRevisionManual) {
+            requierenRevision.push(paquete);
+          }
+        }
+      }
+      
+      procesados++;
+      onProgress?.(procesados, paquetes.length);
+      
+      if (clasificaciones.get(paquete.trackingNumber)?.hsCode === '9999.99.99') {
+        htsGenerico++;
+      }
+      
+      if ((clasificaciones.get(paquete.trackingNumber)?.validacionNLP.terminosSensiblesDetectados.length || 0) > 0) {
+        conTerminosSensibles++;
+      }
+    }
+    
+    return {
+      clasificaciones,
+      requierenRevision,
+      estadisticas: {
+        total: paquetes.length,
+        clasificadosAuto,
+        requierenRevision: requierenRevision.length,
+        htsGenerico,
+        conTerminosSensibles,
+        clasificadosConAI
+      }
+    };
+  }
+  
+  /**
+   * Combina resultado local con respuesta AI
+   */
+  private static combinarConAI(
+    paquete: ManifestRow,
+    local: ResultadoClasificacionHTS,
+    ai: ClasificacionAIResponse
+  ): ResultadoClasificacionHTS {
+    // Si AI no dio error y tiene confianza alta, usar su clasificación
+    const usarAI = !ai.error && ai.confianza > 50;
+    
+    const terminosSensiblesAI: TerminoSensibleDetectado[] = ai.terminosSensibles.map((t, i) => ({
+      termino: t.termino,
+      categoria: t.categoria,
+      riesgo: t.riesgo,
+      autoridad: t.autoridad,
+      descripcion: `Detectado por AI: ${t.termino}`,
+      posicionEnTexto: i
+    }));
+    
+    // Combinar términos sensibles (locales + AI)
+    const terminosCombinados = [
+      ...local.validacionNLP.terminosSensiblesDetectados,
+      ...terminosSensiblesAI.filter(tai => 
+        !local.validacionNLP.terminosSensiblesDetectados.some(tl => 
+          tl.termino.toLowerCase() === tai.termino.toLowerCase()
+        )
+      )
+    ];
+    
+    // Combinar autoridades
+    const autoridadesCombinadas = new Set([
+      ...local.autoridadesInvolucradas,
+      ...ai.terminosSensibles.filter(t => t.autoridad).map(t => t.autoridad!)
+    ]);
+    
+    return {
+      guia: paquete.trackingNumber,
+      hsCode: usarAI ? ai.hsCode : local.hsCode,
+      hsCodeOriginal: local.hsCode !== ai.hsCode ? local.hsCode : undefined,
+      descripcionArancelaria: usarAI ? ai.descripcionArancelaria : local.descripcionArancelaria,
+      arancel: usarAI 
+        ? { 
+            hsCode: ai.hsCode, 
+            descripcion: ai.descripcionArancelaria, 
+            daiPercent: local.arancel.daiPercent,
+            iscPercent: local.arancel.iscPercent,
+            itbmsPercent: local.arancel.itbmsPercent,
+            requiresPermiso: ai.terminosSensibles.length > 0,
+            categoria: local.arancel.categoria
+          } 
+        : local.arancel,
+      validacionNLP: {
+        coincidenciaDescripcion: usarAI ? ai.confianza : local.validacionNLP.coincidenciaDescripcion,
+        palabrasClaveEncontradas: local.validacionNLP.palabrasClaveEncontradas,
+        terminosSensiblesDetectados: terminosCombinados,
+        descripcionGenerica: local.validacionNLP.descripcionGenerica
+      },
+      requiereRevisionManual: ai.requiereRevision || (ai.confianza < 60),
+      motivoRevision: ai.motivoRevision || ai.razonamiento,
+      confianzaClasificacion: usarAI ? ai.confianza : local.confianzaClasificacion,
+      autoridadesInvolucradas: Array.from(autoridadesCombinadas),
+      auditoria: {
+        fechaClasificacion: new Date().toISOString(),
+        metodo: usarAI ? 'nlp' : local.auditoria.metodo,
+        reglas: [
+          ...local.auditoria.reglas,
+          usarAI ? `Clasificación AI: ${ai.hsCode} (${ai.confianza}%)` : 'AI no aplicado',
+          ai.razonamiento ? `Razonamiento: ${ai.razonamiento.substring(0, 100)}` : ''
+        ].filter(Boolean)
       }
     };
   }
