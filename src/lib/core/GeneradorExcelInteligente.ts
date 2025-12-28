@@ -12,6 +12,7 @@ import { format, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { supabase } from '@/integrations/supabase/client';
 import { servicioFiscal, EnriquecimientoFiscal } from '@/lib/fiscal/ServicioValidacionFiscal';
+import { detectarProductoFarmaceutico } from '@/lib/exportacion/reporteFarmaceuticos';
 
 // ============================================
 // CONFIGURACIÓN OFICIAL ANA (Boletas Reales)
@@ -24,32 +25,6 @@ const CONFIG_LIQUIDACION = {
   recargoMora1: 0.10,
   recargoMora2: 0.20,
 };
-
-// ============================================
-// PALABRAS CLAVE PHARMA (MINSA/APA)
-// ============================================
-export const PALABRAS_CLAVE_PHARMA = [
-  'vitamin', 'vitamina', 'supplement', 'suplemento',
-  'skin care', 'skincare', 'cosmetic', 'cosmetico', 'cosmético',
-  'health', 'salud', 'medicine', 'medicamento', 'medicina',
-  'food', 'alimento', 'dietary', 'nutrition', 'nutricional',
-  'pharmaceutical', 'farmaceutico', 'farmacéutico',
-  'capsule', 'cápsula', 'tablet', 'tableta', 'pill',
-  'cream', 'crema', 'lotion', 'loción', 'serum',
-  'protein', 'proteina', 'proteína', 'omega', 'collagen', 'colágeno',
-  'shampoo', 'conditioner', 'acondicionador',
-  'beauty', 'belleza', 'makeup', 'maquillaje'
-];
-
-export const HTS_PHARMA_PREFIXES = ['30', '33'];
-
-export const DESCRIPCIONES_GENERICAS = [
-  'personal effects', 'efectos personales',
-  'merchandise', 'mercancía', 'mercancia',
-  'gift', 'regalo', 'present',
-  'goods', 'productos', 'items',
-  'misc', 'miscellaneous', 'varios'
-];
 
 // ============================================
 // INTERFACES
@@ -91,39 +66,42 @@ export interface ResultadoGeneracion {
 
 // ============================================
 // FORMATO COLUMNAS CORREDOR (ORDEN EXACTO)
+// Ordenado por: Consignatario, Valor, Peso, Zona
 // ============================================
 const HEADER_FORMATO_CORREDOR = [
-  'MAWB',
-  'AWB',
+  'N° CONSECUTIVO',
   'CONSIGNEE',
   'RUC/CEDULA',
-  'ADDRESS',
+  'VALUE',
+  'WEIGHT',
+  'PROVINCIA',
   'CITY',
+  'MAWB',
+  'AWB',
+  'ADDRESS',
   'DESCRIPTION',
   'QUANTITY',
-  'WEIGHT',
   'FREIGHT',
-  'VALUE',
   'TOTAL VALUE',
   'PHARMA',
-  'N° CONSECUTIVO'
 ];
 
 const HEADER_FORMATO_LIQUIDACION = [
-  'MAWB',
-  'AWB',
+  'N° CONSECUTIVO',
   'CONSIGNEE',
   'RUC/CEDULA',
-  'ADDRESS',
+  'VALUE',
+  'WEIGHT',
+  'PROVINCIA',
   'CITY',
+  'MAWB',
+  'AWB',
+  'ADDRESS',
   'DESCRIPTION',
   'QUANTITY',
-  'WEIGHT',
   'FREIGHT',
-  'VALUE',
   'TOTAL VALUE',
   'PHARMA',
-  'N° CONSECUTIVO',
   'DAI',
   'ITBMS',
   'TASA SISTEMA',
@@ -189,15 +167,6 @@ export async function validarIntegridadPesos(
   };
 }
 
-function esPharma(descripcion: string, htsCode?: string): boolean {
-  if (htsCode) {
-    const htsPrefijo = htsCode.replace('.', '').substring(0, 2);
-    if (HTS_PHARMA_PREFIXES.includes(htsPrefijo)) return true;
-  }
-  const desc = descripcion.toLowerCase();
-  return PALABRAS_CLAVE_PHARMA.some(kw => desc.includes(kw.toLowerCase()));
-}
-
 function calcularEscenariosPago(montoBase: number, fechaRegistro: Date) {
   return [
     {
@@ -219,7 +188,7 @@ function calcularEscenariosPago(montoBase: number, fechaRegistro: Date) {
 }
 
 // ============================================
-// CREAR FILA FORMATO CORREDOR
+// CREAR FILA FORMATO CORREDOR (Orden nuevo)
 // ============================================
 function crearFilaFormatoCorredor(
   paquete: ManifestRow,
@@ -233,25 +202,28 @@ function crearFilaFormatoCorredor(
   const rucCedula = enriquecimiento?.rucCedula || paquete.identification || '';
   const sinRUC = !rucCedula && paquete.valueUSD >= 100;
 
+  const provincia = paquete.province || paquete.detectedProvince || '';
+  const ciudad = paquete.city || paquete.detectedCity || enriquecimiento?.ciudad || '';
+
   const filaBase = [
-    mawb,
-    paquete.trackingNumber,
+    consecutivo,
     paquete.recipient || '',
     rucCedula || (sinRUC ? '⚠️ PENDIENTE' : 'N/A'),
+    paquete.valueUSD?.toFixed(2) || '0.00',
+    paquete.weight?.toFixed(2) || '0.00',
+    provincia,
+    ciudad,
+    mawb,
+    paquete.trackingNumber,
     paquete.address || enriquecimiento?.direccion || '',
-    paquete.city || paquete.detectedCity || enriquecimiento?.ciudad || '',
     (paquete.description || '').substring(0, 80),
     1,
-    paquete.weight?.toFixed(2) || '0.00',
     liquidacion?.valorFlete?.toFixed(2) || '0.00',
-    paquete.valueUSD?.toFixed(2) || '0.00',
     (paquete.valueUSD + (liquidacion?.valorFlete || 0))?.toFixed(2) || '0.00',
     esPharmaFlag ? 'SI' : 'NO',
-    consecutivo
   ];
 
   if (incluirImpuestos && liquidacion) {
-    // Cálculo espejo: DAI + ITBMS + Tasa Sistema = Total
     const totalConTasa = liquidacion.montoDAI + liquidacion.montoITBMS + CONFIG_LIQUIDACION.tasaSistema;
     
     return {
@@ -267,6 +239,62 @@ function crearFilaFormatoCorredor(
   }
 
   return { fila: filaBase, sinRUC };
+}
+
+// ============================================
+// ORDENAR POR CONSIGNATARIO ÚNICO
+// ============================================
+function ordenarPorConsignatario<T extends { paquete: ManifestRow }>(items: T[]): T[] {
+  return [...items].sort((a, b) => {
+    // 1. Por consignatario
+    const consA = (a.paquete.recipient || '').toLowerCase();
+    const consB = (b.paquete.recipient || '').toLowerCase();
+    if (consA !== consB) return consA.localeCompare(consB);
+    
+    // 2. Por valor
+    if (a.paquete.valueUSD !== b.paquete.valueUSD) {
+      return b.paquete.valueUSD - a.paquete.valueUSD;
+    }
+    
+    // 3. Por peso
+    if (a.paquete.weight !== b.paquete.weight) {
+      return b.paquete.weight - a.paquete.weight;
+    }
+    
+    // 4. Por provincia
+    const provA = (a.paquete.province || a.paquete.detectedProvince || '').toLowerCase();
+    const provB = (b.paquete.province || b.paquete.detectedProvince || '').toLowerCase();
+    return provA.localeCompare(provB);
+  });
+}
+
+// ============================================
+// DISTRIBUIR SIN CONSIGNATARIOS REPETIDOS
+// ============================================
+function distribuirSinRepetidosPorHoja<T extends { paquete: ManifestRow }>(
+  items: T[]
+): { hoja1: T[]; hoja2: T[] } {
+  const consignatariosHoja1 = new Set<string>();
+  const hoja1: T[] = [];
+  const hoja2: T[] = [];
+
+  // Ordenar primero
+  const itemsOrdenados = ordenarPorConsignatario(items);
+
+  for (const item of itemsOrdenados) {
+    const consignatario = (item.paquete.recipient || '').toLowerCase().trim();
+    
+    if (!consignatariosHoja1.has(consignatario)) {
+      // Primer paquete de este consignatario va a hoja 1
+      consignatariosHoja1.add(consignatario);
+      hoja1.push(item);
+    } else {
+      // Consignatario repetido va a hoja 2
+      hoja2.push(item);
+    }
+  }
+
+  return { hoja1, hoja2 };
 }
 
 // ============================================
@@ -316,7 +344,7 @@ export async function generarExcelInteligente(
   liquidaciones.forEach(l => liqMap.set(l.numeroGuia, l));
 
   // ══════════════════════════════════════════════════════════
-  // CLASIFICAR PAQUETES (PHARMA PRIORITARIO)
+  // CLASIFICAR PAQUETES (PHARMA basado en HTS cap. 30)
   // ══════════════════════════════════════════════════════════
   
   const pharmaList: Array<{ paquete: ManifestRow; liquidacion?: Liquidacion }> = [];
@@ -328,13 +356,14 @@ export async function generarExcelInteligente(
     const desc = paquete.description || '';
     const hts = liq?.hsCode || '';
 
-    // PRIORIDAD 1: PHARMA
-    if (esPharma(desc, hts)) {
+    // PHARMA: Usar detector estricto (solo medicamentos, HTS cap. 30)
+    const deteccionFarma = detectarProductoFarmaceutico(desc, hts);
+    if (deteccionFarma.esFarmaceutico) {
       pharmaList.push({ paquete, liquidacion: liq });
       return;
     }
 
-    // PRIORIDAD 2: Por valor
+    // Por valor
     if (paquete.valueUSD >= 100) {
       const liquidacion = liq || crearLiquidacionPendiente(paquete, mawb);
       mas100List.push({ paquete, liquidacion });
@@ -349,10 +378,11 @@ export async function generarExcelInteligente(
   // PESTAÑA +100 (LIQUIDACIÓN CON IMPUESTOS Y RUC)
   // ══════════════════════════════════════════════════════════
 
+  const mas100Ordenados = ordenarPorConsignatario(mas100List);
   const dataMas100: (string | number)[][] = [HEADER_FORMATO_LIQUIDACION];
   let consecutivo = 1;
 
-  mas100List.forEach(({ paquete, liquidacion }) => {
+  mas100Ordenados.forEach(({ paquete, liquidacion }) => {
     const enriquecimiento = datosFiscales.get(paquete.recipient);
     const { fila, sinRUC } = crearFilaFormatoCorredor(
       paquete, mawb, consecutivo++, false, enriquecimiento, liquidacion, true
@@ -371,8 +401,8 @@ export async function generarExcelInteligente(
   });
 
   // Totales y escenarios de pago
-  if (mas100List.length > 0) {
-    const totales = mas100List.reduce((acc, { liquidacion }) => ({
+  if (mas100Ordenados.length > 0) {
+    const totales = mas100Ordenados.reduce((acc, { liquidacion }) => ({
       value: acc.value + liquidacion.valorFOB,
       totalValue: acc.totalValue + liquidacion.valorCIF,
       dai: acc.dai + liquidacion.montoDAI,
@@ -385,9 +415,9 @@ export async function generarExcelInteligente(
 
     dataMas100.push([]);
     dataMas100.push([
-      '', 'TOTALES', '', '', '', '', '', mas100List.length,
-      '', '', totales.value.toFixed(2), totales.totalValue.toFixed(2), '',
-      '', totales.dai.toFixed(2), totales.itbms.toFixed(2), totales.tasa.toFixed(2),
+      'TOTALES', '', '', totales.value.toFixed(2), '', '', '', '', mas100Ordenados.length,
+      '', '', '', '', totales.totalValue.toFixed(2), '',
+      totales.dai.toFixed(2), totales.itbms.toFixed(2), totales.tasa.toFixed(2),
       `B/. ${totales.total.toFixed(2)}`
     ]);
 
@@ -397,34 +427,34 @@ export async function generarExcelInteligente(
       `PUNTUAL: B/. ${escenarios[0].montoTotal.toFixed(2)}`,
       `+10%: B/. ${escenarios[1].montoTotal.toFixed(2)}`,
       `+20%: B/. ${escenarios[2].montoTotal.toFixed(2)}`,
-      ''
+      '', ''
     ]);
     dataMas100.push([
       'VENCIMIENTOS:', '', '', '', '', '', '', '', '', '', '', '', '', '',
       format(escenarios[0].fechaVencimiento, 'dd/MM/yyyy'),
       format(escenarios[1].fechaVencimiento, 'dd/MM/yyyy'),
       format(escenarios[2].fechaVencimiento, 'dd/MM/yyyy'),
-      ''
+      '', ''
     ]);
   }
 
   const wsMas100 = XLSX.utils.aoa_to_sheet(dataMas100);
   wsMas100['!cols'] = [
-    { wch: 15 }, { wch: 18 }, { wch: 25 }, { wch: 15 }, { wch: 30 }, { wch: 15 },
-    { wch: 40 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
-    { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 10 },
-    { wch: 12 }, { wch: 14 }
+    { wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 15 },
+    { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 30 }, { wch: 40 }, { wch: 8 },
+    { wch: 10 }, { wch: 12 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 12 }, { wch: 14 }
   ];
   XLSX.utils.book_append_sheet(wb, wsMas100, '+100');
 
   onProgress?.(45);
 
   // ══════════════════════════════════════════════════════════
-  // PESTAÑAS -100 (1) y -100 (2)
+  // PESTAÑAS -100 (1) y -100 (2) - SIN CONSIGNATARIOS REPETIDOS
   // ══════════════════════════════════════════════════════════
-  const LIMITE_POR_HOJA = 100;
 
   if (menos100List.length > 0) {
+    const { hoja1, hoja2 } = distribuirSinRepetidosPorHoja(menos100List);
+
     const crearHojaMenos100 = (
       items: typeof menos100List, 
       nombreHoja: string,
@@ -443,32 +473,34 @@ export async function generarExcelInteligente(
 
       const ws = XLSX.utils.aoa_to_sheet(data);
       ws['!cols'] = [
-        { wch: 15 }, { wch: 18 }, { wch: 25 }, { wch: 15 }, { wch: 30 }, { wch: 15 },
-        { wch: 40 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
-        { wch: 12 }, { wch: 8 }, { wch: 12 }
+        { wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 15 },
+        { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 30 }, { wch: 40 }, { wch: 8 },
+        { wch: 10 }, { wch: 12 }, { wch: 8 }
       ];
       XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
     };
 
-    if (menos100List.length > LIMITE_POR_HOJA) {
-      crearHojaMenos100(menos100List.slice(0, LIMITE_POR_HOJA), '-100 (1)', 1);
-      crearHojaMenos100(menos100List.slice(LIMITE_POR_HOJA), '-100 (2)', LIMITE_POR_HOJA + 1);
-    } else {
-      crearHojaMenos100(menos100List, '-100 (1)', 1);
+    // Hoja 1: Un paquete por consignatario (únicos)
+    crearHojaMenos100(hoja1, '-100 (1)', 1);
+    
+    // Hoja 2: Paquetes adicionales de consignatarios repetidos
+    if (hoja2.length > 0) {
+      crearHojaMenos100(hoja2, '-100 (2)', hoja1.length + 1);
     }
   }
 
   onProgress?.(60);
 
   // ══════════════════════════════════════════════════════════
-  // PESTAÑA PHARMA
+  // PESTAÑA MINSA/PHARMA (Solo medicamentos reales)
   // ══════════════════════════════════════════════════════════
 
   if (pharmaList.length > 0) {
+    const pharmaOrdenados = ordenarPorConsignatario(pharmaList);
     const dataPharma: (string | number)[][] = [HEADER_FORMATO_CORREDOR];
     consecutivo = 1;
 
-    pharmaList.forEach(({ paquete, liquidacion }) => {
+    pharmaOrdenados.forEach(({ paquete, liquidacion }) => {
       const enriquecimiento = datosFiscales.get(paquete.recipient);
       const { fila } = crearFilaFormatoCorredor(
         paquete, mawb, consecutivo++, true, enriquecimiento, liquidacion, false
@@ -478,11 +510,11 @@ export async function generarExcelInteligente(
 
     const wsPharma = XLSX.utils.aoa_to_sheet(dataPharma);
     wsPharma['!cols'] = [
-      { wch: 15 }, { wch: 18 }, { wch: 25 }, { wch: 15 }, { wch: 30 }, { wch: 15 },
-      { wch: 40 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
-      { wch: 12 }, { wch: 8 }, { wch: 12 }
+      { wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 15 },
+      { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 30 }, { wch: 40 }, { wch: 8 },
+      { wch: 10 }, { wch: 12 }, { wch: 8 }
     ];
-    XLSX.utils.book_append_sheet(wb, wsPharma, 'PHARMA');
+    XLSX.utils.book_append_sheet(wb, wsPharma, 'MINSA');
   }
 
   onProgress?.(75);
@@ -520,16 +552,23 @@ export async function generarExcelInteligente(
   // PESTAÑA MAWB (CONTROL MAESTRO)
   // ══════════════════════════════════════════════════════════
 
+  const paquetesOrdenados = [...paquetes].sort((a, b) => {
+    const consA = (a.recipient || '').toLowerCase();
+    const consB = (b.recipient || '').toLowerCase();
+    if (consA !== consB) return consA.localeCompare(consB);
+    return b.valueUSD - a.valueUSD;
+  });
+
   const dataMaster: (string | number)[][] = [HEADER_FORMATO_CORREDOR];
   consecutivo = 1;
 
-  paquetes.forEach(paquete => {
+  paquetesOrdenados.forEach(paquete => {
     const liq = liqMap.get(paquete.trackingNumber);
-    const isPharma = esPharma(paquete.description || '', liq?.hsCode);
+    const deteccionFarma = detectarProductoFarmaceutico(paquete.description || '', liq?.hsCode);
     const enriquecimiento = datosFiscales.get(paquete.recipient);
     
     const { fila } = crearFilaFormatoCorredor(
-      paquete, mawb, consecutivo++, isPharma, enriquecimiento, liq, false
+      paquete, mawb, consecutivo++, deteccionFarma.esFarmaceutico, enriquecimiento, liq, false
     );
     dataMaster.push(fila);
   });
@@ -539,21 +578,21 @@ export async function generarExcelInteligente(
 
   dataMaster.push([]);
   dataMaster.push([
-    'RESUMEN', '', '', '', '', '', '', paquetes.length,
-    totalPeso.toFixed(2), '', totalValor.toFixed(2), '', '',
+    'RESUMEN', '', '', totalValor.toFixed(2), totalPeso.toFixed(2), '', '', '', paquetes.length,
+    '', '', '', '', '',
     format(fechaProceso, 'dd/MM/yyyy')
   ]);
   dataMaster.push([
-    `+100: ${mas100List.length}`, `PHARMA: ${pharmaList.length}`, 
+    `+100: ${mas100List.length}`, `MINSA: ${pharmaList.length}`, 
     `-100: ${menos100List.length}`, `SIN RUC: ${guiasSinRUC.length}`,
-    '', '', '', '', '', '', '', '', '', ''
+    '', '', '', '', '', '', '', '', '', '', ''
   ]);
 
   const wsMaster = XLSX.utils.aoa_to_sheet(dataMaster);
   wsMaster['!cols'] = [
-    { wch: 15 }, { wch: 18 }, { wch: 25 }, { wch: 15 }, { wch: 30 }, { wch: 15 },
-    { wch: 40 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
-    { wch: 12 }, { wch: 8 }, { wch: 12 }
+    { wch: 12 }, { wch: 25 }, { wch: 15 }, { wch: 10 }, { wch: 10 }, { wch: 15 },
+    { wch: 15 }, { wch: 15 }, { wch: 18 }, { wch: 30 }, { wch: 40 }, { wch: 8 },
+    { wch: 10 }, { wch: 12 }, { wch: 8 }
   ];
 
   const mawbClean = mawb.replace(/[^0-9]/g, '').slice(-8) || '00000000';
@@ -659,7 +698,4 @@ export default {
   generarExcelInteligente,
   descargarExcelInteligente,
   validarIntegridadPesos,
-  PALABRAS_CLAVE_PHARMA,
-  DESCRIPCIONES_GENERICAS,
-  HTS_PHARMA_PREFIXES
 };
