@@ -46,6 +46,7 @@ import { FarmaceuticosResumen } from './FarmaceuticosResumen';
 import { FiltroSanitarioPanel } from './FiltroSanitarioPanel';
 import { SubvaluacionPanel } from './SubvaluacionPanel';
 import { AgenteAduanalTab } from './AgenteAduanalTab';
+import { CargaFacturas } from './CargaFacturas';
 import { generarReporteConsolidado } from '@/lib/aduanas/reporteConsolidado';
 import {
   PieChart,
@@ -573,6 +574,14 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
                 allRows,
                 { mawb: mawbExportInfo.mawb, fechaProceso: new Date() }
               );
+            }}
+          />
+          
+          {/* Carga de Facturas PDF */}
+          <CargaFacturas 
+            liquidacionesPendientes={liquidaciones}
+            onFacturasAsociadas={(facturas) => {
+              console.log('[VisualDashboard] Facturas cargadas:', facturas.length);
             }}
           />
         </TabsContent>
