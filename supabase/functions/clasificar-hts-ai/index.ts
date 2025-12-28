@@ -167,7 +167,7 @@ Responde en JSON con esta estructura exacta:
           { role: 'system', content: SYSTEM_PROMPT },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.3, // Baja temperatura para respuestas consistentes
+        // Note: temperature parameter removed as it's not supported by Gemini 2.5
       }),
     });
 

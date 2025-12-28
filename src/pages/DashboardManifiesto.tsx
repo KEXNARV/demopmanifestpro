@@ -85,7 +85,7 @@ export default function DashboardManifiesto() {
   const [filtroCategoria, setFiltroCategoria] = useState<string>('todas');
   const [paginaActual, setPaginaActual] = useState(1);
 
-  // Cargar datos
+  // Cargar datos y procesar con AI automáticamente
   useEffect(() => {
     if (!manifiestoId) return;
 
@@ -107,6 +107,29 @@ export default function DashboardManifiesto() {
 
         setManifiesto(man);
         setPaquetes(filas);
+
+        // Convertir a ManifestRow y procesar con AI automáticamente
+        if (filas.length > 0) {
+          const paquetesParaAI: ManifestRow[] = filas.map((p, idx) => ({
+            id: `row-${idx}`,
+            trackingNumber: p.tracking || '',
+            description: p.descripcion || '',
+            valueUSD: p.valorUSD || 0,
+            weight: p.peso || 0,
+            recipient: p.destinatario || '',
+            address: p.direccion || '',
+            originalRowIndex: idx,
+            province: p.provincia || '',
+            city: p.ciudad || '',
+            identification: p.identificacion || '',
+            phone: p.telefono || '',
+          }));
+
+          // Procesar con el Agente Aduanal AI
+          agenteAduanal.procesarManifiesto(paquetesParaAI, manifiestoId, {
+            fechaRegistro: new Date()
+          });
+        }
       } catch (error) {
         console.error('Error cargando datos:', error);
         toast({
@@ -299,130 +322,77 @@ export default function DashboardManifiesto() {
     paginaActual * ITEMS_POR_PAGINA
   );
 
-  // Exportar Excel con distribución por lotes
+  // Exportar Excel consolidado con el nuevo sistema AI
   const handleDescargarExcel = async () => {
     if (!manifiesto) return;
 
+    // Si hay resultado del Agente AI, usar firma digital
+    if (agenteAduanal.resultado) {
+      setExportando(true);
+      try {
+        // Abrir diálogo de firma digital del Panel Agente Aduanal
+        // El usuario debe ir a la pestaña "Agente AI" y usar el botón de descarga
+        toast({
+          title: 'Usar Agente AI',
+          description: 'Para descargar el Excel consolidado con firma digital, ve a la pestaña "Agente AI" y presiona "Descargar con Firma Digital".'
+        });
+      } finally {
+        setExportando(false);
+      }
+      return;
+    }
+
+    // Fallback: generar Excel básico si no hay procesamiento AI
     setExportando(true);
     try {
       const wb = XLSX.utils.book_new();
       
       // HOJA 1: Resumen
-      const resumen = [
-        ['RESUMEN DEL MANIFIESTO'],
+      const resumenData = [
+        ['RESUMEN DEL MANIFIESTO - FORMATO CORREDOR'],
         [''],
         ['MAWB:', manifiesto.mawb || 'No detectado'],
         ['Fecha Proceso:', manifiesto.fechaProcesamiento ? new Date(manifiesto.fechaProcesamiento).toLocaleString() : 'N/A'],
         ['Total Paquetes:', metricas.totalPaquetes],
         [''],
-        ['ESTADÍSTICAS POR CATEGORÍA'],
-        ['Categoría A (Documentos):', paquetes.filter(p => p.categoriaAduanera === 'A').length],
-        ['Categoría B (De Minimis ≤$100):', paquetes.filter(p => p.categoriaAduanera === 'B').length],
-        ['Categoría C (Bajo Valor):', paquetes.filter(p => p.categoriaAduanera === 'C').length],
-        ['Categoría D (Alto Valor):', paquetes.filter(p => p.categoriaAduanera === 'D').length],
-        ['Con Restricciones:', conRestricciones.length],
-        [''],
         ['DISTRIBUCIÓN POR VALOR'],
-        [`Menores o igual a $${metricas.umbral}:`, metricas.menorAUmbral.cantidad, `(${metricas.menorAUmbral.porcentaje}%)`],
-        [`Mayores a $${metricas.umbral}:`, metricas.mayorAUmbral.cantidad, `(${metricas.mayorAUmbral.porcentaje}%)`],
+        [`≤$${metricas.umbral} (De Minimis):`, metricas.menorAUmbral.cantidad, `(${metricas.menorAUmbral.porcentaje}%)`],
+        [`>$${metricas.umbral} (Liquidación):`, metricas.mayorAUmbral.cantidad, `(${metricas.mayorAUmbral.porcentaje}%)`],
         [''],
-        ['FINANCIERO'],
-        ['Valor CIF Total:', `$${metricas.valorCIFTotal.toFixed(2)}`],
-        ['Tributos Total:', `$${metricas.tributosTotal.toFixed(2)}`],
-        ['Total a Cobrar:', `$${metricas.totalCobrar.toFixed(2)}`]
+        ['⚠️ NOTA: Para obtener el formato completo con clasificación HTS, RUC/Cédula y liquidación,'],
+        ['procese el manifiesto con el Agente AI en la pestaña correspondiente.']
       ];
       
-      const wsResumen = XLSX.utils.aoa_to_sheet(resumen);
-      wsResumen['!cols'] = [{ wch: 30 }, { wch: 20 }, { wch: 15 }];
+      const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
+      wsResumen['!cols'] = [{ wch: 40 }, { wch: 20 }, { wch: 15 }];
       XLSX.utils.book_append_sheet(wb, wsResumen, 'Resumen');
       
-      // HOJA 2: Lote A (< $100)
-      if (loteA.length > 0) {
-        const datosLoteA = [
-          ['LOTE A - PAQUETES MENORES A $100 USD'],
-          [''],
-          ['#', 'Guía', 'Consignatario', 'Dirección', 'Descripción', 'Categoría', 'Valor CIF']
-        ];
-        
-        loteA.forEach((paq, idx) => {
-          datosLoteA.push([
-            (idx + 1).toString(),
-            paq.tracking || '',
-            paq.destinatario || '',
-            paq.direccion || '',
-            (paq.descripcion || '').substring(0, 50),
-            paq.categoriaAduanera || '',
-            `$${(paq.valorUSD || 0).toFixed(2)}`
-          ]);
-        });
-        
-        datosLoteA.push([]);
-        datosLoteA.push(['TOTAL', '', '', '', '', '', `$${metricas.menorAUmbral.valorTotal.toFixed(2)}`]);
-        
-        const wsLoteA = XLSX.utils.aoa_to_sheet(datosLoteA);
-        wsLoteA['!cols'] = [{ wch: 5 }, { wch: 20 }, { wch: 25 }, { wch: 30 }, { wch: 40 }, { wch: 10 }, { wch: 12 }];
-        XLSX.utils.book_append_sheet(wb, wsLoteA, 'Lote A (<$100)');
-      }
+      // HOJA 2: Todos los paquetes
+      const headerRow = ['#', 'GUIA', 'CONSIGNATARIO', 'DIRECCIÓN', 'DESCRIPCIÓN', 'CATEGORÍA', 'VALOR USD'];
+      const datosCompletos = [headerRow];
       
-      // HOJA 3: Lote B (> $100)
-      if (loteB.length > 0) {
-        const datosLoteB = [
-          ['LOTE B - PAQUETES MAYORES A $100 USD'],
-          [''],
-          ['#', 'Guía', 'Consignatario', 'Dirección', 'Descripción', 'Categoría', 'Valor CIF']
-        ];
-        
-        loteB.forEach((paq, idx) => {
-          datosLoteB.push([
-            (idx + 1).toString(),
-            paq.tracking || '',
-            paq.destinatario || '',
-            paq.direccion || '',
-            (paq.descripcion || '').substring(0, 50),
-            paq.categoriaAduanera || '',
-            `$${(paq.valorUSD || 0).toFixed(2)}`
-          ]);
-        });
-        
-        datosLoteB.push([]);
-        datosLoteB.push(['TOTAL', '', '', '', '', '', `$${metricas.mayorAUmbral.valorTotal.toFixed(2)}`]);
-        
-        const wsLoteB = XLSX.utils.aoa_to_sheet(datosLoteB);
-        wsLoteB['!cols'] = [{ wch: 5 }, { wch: 20 }, { wch: 25 }, { wch: 30 }, { wch: 40 }, { wch: 10 }, { wch: 12 }];
-        XLSX.utils.book_append_sheet(wb, wsLoteB, 'Lote B (>$100)');
-      }
+      paquetes.forEach((paq, idx) => {
+        datosCompletos.push([
+          (idx + 1).toString(),
+          paq.tracking || '',
+          paq.destinatario || '',
+          paq.direccion || '',
+          (paq.descripcion || '').substring(0, 80),
+          paq.categoriaAduanera || 'B',
+          `$${(paq.valorUSD || 0).toFixed(2)}`
+        ]);
+      });
       
-      // HOJA 4: Productos con Restricciones
-      if (conRestricciones.length > 0) {
-        const datosRestricciones = [
-          ['PRODUCTOS CON RESTRICCIONES'],
-          [''],
-          ['#', 'Guía', 'Descripción', 'Categoría', 'Autoridades', 'Valor']
-        ];
-        
-        conRestricciones.forEach((paq, idx) => {
-          datosRestricciones.push([
-            (idx + 1).toString(),
-            paq.tracking || '',
-            (paq.descripcion || '').substring(0, 50),
-            paq.categoria || paq.categoriaAduanera || '',
-            (paq.autoridades || []).join(', '),
-            `$${(paq.valorUSD || 0).toFixed(2)}`
-          ]);
-        });
-        
-        const wsRestricciones = XLSX.utils.aoa_to_sheet(datosRestricciones);
-        wsRestricciones['!cols'] = [{ wch: 5 }, { wch: 20 }, { wch: 40 }, { wch: 15 }, { wch: 20 }, { wch: 12 }];
-        XLSX.utils.book_append_sheet(wb, wsRestricciones, 'Restricciones');
-      }
+      const wsCompleto = XLSX.utils.aoa_to_sheet(datosCompletos);
+      wsCompleto['!cols'] = [{ wch: 5 }, { wch: 20 }, { wch: 25 }, { wch: 35 }, { wch: 50 }, { wch: 10 }, { wch: 12 }];
+      XLSX.utils.book_append_sheet(wb, wsCompleto, 'Paquetes');
       
-      // Generar y descargar
       const mawbClean = (manifiesto.mawb || 'SIN_MAWB').replace(/[^a-zA-Z0-9-]/g, '_');
-      XLSX.writeFile(wb, `Manifiesto_${mawbClean}_${Date.now()}.xlsx`);
+      XLSX.writeFile(wb, `Manifiesto_Basico_${mawbClean}_${Date.now()}.xlsx`);
 
       toast({
-        title: '✅ Excel generado',
-        description: 'El archivo se ha descargado correctamente'
+        title: 'Excel básico generado',
+        description: 'Para el formato completo con HTS y RUC, usa el Agente AI.'
       });
     } catch (error) {
       console.error('Error exportando:', error);

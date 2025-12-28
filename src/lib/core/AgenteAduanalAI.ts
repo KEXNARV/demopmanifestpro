@@ -43,6 +43,21 @@ export class AgenteAduanalAI {
       paquetes, opciones.facturasLineItems
     );
     
+    // 1.5. Enriquecer paquetes con código HTS para análisis de subvaluación
+    paquetes.forEach(paquete => {
+      const clasificacion = clasificaciones.get(paquete.trackingNumber);
+      if (clasificacion) {
+        paquete.hsCode = clasificacion.hsCode;
+        paquete.descripcionArancelaria = clasificacion.descripcionArancelaria;
+        paquete.confianzaHTS = clasificacion.confianzaClasificacion;
+        if (clasificacion.autoridadesInvolucradas.length > 0) {
+          paquete.autoridadAnuente = clasificacion.autoridadesInvolucradas[0];
+        }
+      }
+    });
+    
+    devLog(`[Agente] HTS asignados a ${clasificaciones.size} paquetes`);
+    
     // 2. Construir mapa de aranceles
     const aranceles = new Map<string, Arancel>();
     clasificaciones.forEach((c, guia) => aranceles.set(guia, c.arancel));
@@ -52,7 +67,7 @@ export class AgenteAduanalAI {
       paquetes, aranceles, manifiestoId, { fechaRegistro: opciones.fechaRegistro }
     );
     
-    // 4. Auditoría de riesgos
+    // 4. Auditoría de riesgos (ahora con HTS asignados a paquetes)
     const hsCodes = new Map<string, string>();
     clasificaciones.forEach((c, guia) => hsCodes.set(guia, c.hsCode));
     const auditoria = DetectorRiesgos.auditarLote(paquetes, { hsCodes });

@@ -40,6 +40,11 @@ export interface ManifestRow {
   gtinErrores?: string[];
   gtinPaisOrigen?: string;
   requiereRevisionGTIN?: boolean;
+  // HTS Classification fields (for subvaluation analysis by tariff code)
+  hsCode?: string;
+  descripcionArancelaria?: string;
+  confianzaHTS?: number;
+  autoridadAnuente?: string;
   [key: string]: string | number | boolean | string[] | undefined;
 }
 
