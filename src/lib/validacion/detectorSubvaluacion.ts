@@ -414,6 +414,21 @@ function esFuenteConfiable(descripcion: string): { esConfiable: boolean; fuente:
 const UMBRAL_SUBVALUACION_CRITICA = 0.5; // 50%
 const UMBRAL_SUBVALUACION_SOSPECHOSA = 0.7; // 70%
 
+// Referencias genéricas por partida HTS (cuando no hay match por descripción)
+const REFERENCIAS_POR_PARTIDA: Array<{ prefix: string; ref: ProductoReferencia }> = [
+  { prefix: '8517', ref: { keywords: [], nombreProducto: 'Smartphone / Teléfono', precioMinimo: 300, precioMaximo: 2000, categoria: 'Electrónica', partidasArancelarias: ['8517'] } },
+  { prefix: '8471', ref: { keywords: [], nombreProducto: 'Computadora / Laptop / Tablet', precioMinimo: 400, precioMaximo: 3000, categoria: 'Electrónica', partidasArancelarias: ['8471'] } },
+  { prefix: '8528', ref: { keywords: [], nombreProducto: 'Monitor / TV', precioMinimo: 120, precioMaximo: 3000, categoria: 'Electrónica', partidasArancelarias: ['8528'] } },
+  { prefix: '9504', ref: { keywords: [], nombreProducto: 'Consola / Hardware de videojuego', precioMinimo: 150, precioMaximo: 800, categoria: 'Electrónica', partidasArancelarias: ['9504'] } },
+  { prefix: '9006', ref: { keywords: [], nombreProducto: 'Cámara / Fotografía', precioMinimo: 200, precioMaximo: 5000, categoria: 'Electrónica', partidasArancelarias: ['9006', '8525'] } },
+  { prefix: '9101', ref: { keywords: [], nombreProducto: 'Reloj', precioMinimo: 80, precioMaximo: 2000, categoria: 'Joyería', partidasArancelarias: ['9101', '9102'] } },
+  { prefix: '9102', ref: { keywords: [], nombreProducto: 'Reloj', precioMinimo: 80, precioMaximo: 2000, categoria: 'Joyería', partidasArancelarias: ['9101', '9102'] } },
+];
+
+function normalizarPartida(hs: string): string {
+  return hs.replace(/\./g, '').replace(/[^0-9]/g, '').slice(0, 4);
+}
+
 /**
  * Analiza un paquete para detectar subvaluación
  * Incluye detección inteligente de accesorios vs productos principales
@@ -468,17 +483,29 @@ export function analizarSubvaluacion(paquete: ManifestRow): ResultadoSubvaluacio
     };
   }
   
-  // Buscar producto en la base de referencia
+  // Buscar producto de referencia (prioridad: HTS -> descripción)
   let productoEncontrado: ProductoReferencia | null = null;
-  
-  for (const producto of PRODUCTOS_REFERENCIA) {
-    for (const keyword of producto.keywords) {
-      if (descripcionLower.includes(keyword.toLowerCase())) {
-        // Preferir el match más específico (más largo)
-        if (!productoEncontrado || keyword.length > productoEncontrado.keywords[0].length) {
-          productoEncontrado = producto;
+
+  // 1) Intento por partida HTS (cuando existe)
+  const partidaBase = partidaArancelaria ? normalizarPartida(partidaArancelaria) : '';
+  if (partidaBase) {
+    const matchPorPartida = REFERENCIAS_POR_PARTIDA.find((x) => x.prefix === partidaBase);
+    if (matchPorPartida) {
+      productoEncontrado = matchPorPartida.ref;
+    }
+  }
+
+  // 2) Fallback por descripción (comportamiento existente)
+  if (!productoEncontrado) {
+    for (const producto of PRODUCTOS_REFERENCIA) {
+      for (const keyword of producto.keywords) {
+        if (descripcionLower.includes(keyword.toLowerCase())) {
+          // Preferir el match más específico (más largo)
+          if (!productoEncontrado || keyword.length > productoEncontrado.keywords[0].length) {
+            productoEncontrado = producto;
+          }
+          break;
         }
-        break;
       }
     }
   }

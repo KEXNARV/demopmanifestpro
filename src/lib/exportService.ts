@@ -491,6 +491,125 @@ export function downloadExportFile(file: ExportFile, consigneeMap?: Map<string, 
   saveAs(blob, `${file.name}.xlsx`);
 }
 
+function safeSheetName(raw: string, used: Set<string>): string {
+  const base = raw
+    .replace(/[\[\]\*\?\/\\:]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 31) || "Hoja";
+
+  if (!used.has(base)) {
+    used.add(base);
+    return base;
+  }
+
+  for (let i = 2; i < 100; i++) {
+    const suffix = ` ${i}`;
+    const name = `${base.slice(0, Math.max(0, 31 - suffix.length))}${suffix}`;
+    if (!used.has(name)) {
+      used.add(name);
+      return name;
+    }
+  }
+
+  // fallback improbable
+  const fallback = `${base.slice(0, 28)}...`;
+  used.add(fallback);
+  return fallback;
+}
+
+export function downloadConsolidatedExcel(
+  files: ExportFile[],
+  result: ExtendedProcessingResult,
+  mawbInfo?: MAWBExportInfo
+): void {
+  const workbook = XLSX.utils.book_new();
+  const used = new Set<string>();
+
+  const allRows = result.batches.flatMap((b) => b.rows);
+  const now = formatFullDateTime();
+
+  // Hoja Resumen
+  const resumen: (string | number)[][] = [
+    ["MANIFIESTO DE CARGA AÉREA"],
+    [""],
+    ...(mawbInfo
+      ? [["MAWB:", mawbInfo.formatted], ["Aerolínea:", `${mawbInfo.airlineName} (${mawbInfo.airlineCode})`]]
+      : []),
+    ["Fecha Generación:", now],
+    ["Total Guías:", allRows.length],
+    ["Valor Total (USD):", allRows.reduce((s, r) => s + r.valueUSD, 0).toFixed(2)],
+    ["Peso Total (lb):", allRows.reduce((s, r) => s + r.weight, 0).toFixed(1)],
+    [""],
+    ["ARCHIVOS / HOJAS INCLUIDAS"],
+  ];
+
+  files
+    .filter((f) => f.generated && f.rows.length > 0)
+    .forEach((f) => resumen.push([f.category, f.rows.length]));
+
+  const wsResumen = XLSX.utils.aoa_to_sheet(resumen);
+  XLSX.utils.book_append_sheet(workbook, wsResumen, safeSheetName("Resumen", used));
+
+  // Hoja Paquetes (todo)
+  const paquetesData = allRows.map((row) => ({
+    "Número de Guía": row.trackingNumber,
+    "Consignatario": row.recipient,
+    "Identificación": row.identification || "",
+    "Teléfono": row.phone || "",
+    "Provincia": row.province || "",
+    "Ciudad": row.city || "",
+    "Dirección Completa": row.address,
+    "Descripción": row.description,
+    "HTS": row.hsCode || "",
+    "HTS Desc": row.descripcionArancelaria || "",
+    "Valor USD": row.valueUSD,
+    "Peso (lb)": row.weight,
+    "Categoría": row.category || "general",
+  }));
+  XLSX.utils.book_append_sheet(
+    workbook,
+    XLSX.utils.json_to_sheet(paquetesData),
+    safeSheetName("Paquetes", used)
+  );
+
+  // Hojas por archivo/categoría
+  files
+    .filter((f) => f.generated && f.rows.length > 0)
+    .forEach((f) => {
+      const data = f.rows.map((row) => ({
+        "Número de Guía": row.trackingNumber,
+        "Consignatario": row.recipient,
+        "Identificación": row.identification || "",
+        "Provincia": row.province || "",
+        "Ciudad": row.city || "",
+        "Dirección": row.address,
+        "Descripción": row.description,
+        "HTS": row.hsCode || "",
+        "Valor USD": row.valueUSD,
+        "Peso (lb)": row.weight,
+      }));
+
+      XLSX.utils.book_append_sheet(
+        workbook,
+        XLSX.utils.json_to_sheet(data),
+        safeSheetName(f.category, used)
+      );
+    });
+
+  const baseName = mawbInfo
+    ? `MAWB_${mawbInfo.airlineCode}-${mawbInfo.mawb.replace(/^.*-/, "")}_Consolidado`
+    : "Manifiesto_Consolidado";
+
+  const excelBuffer = XLSX.write(workbook, { bookType: "xlsx", type: "array" });
+  saveAs(
+    new Blob([excelBuffer], {
+      type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    }),
+    `${baseName}.xlsx`
+  );
+}
+
 export async function downloadAllFilesAsZip(
   files: ExportFile[],
   result: ExtendedProcessingResult,
