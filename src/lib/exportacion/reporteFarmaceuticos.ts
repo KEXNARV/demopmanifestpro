@@ -8,6 +8,13 @@ import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 import { ManifestRow } from '@/types/manifest';
 import { Liquidacion } from '@/types/aduanas';
+import {
+  EXCLUSIONES_FARMA,
+  HTS_EXCLUIDOS,
+  HTS_FARMACEUTICOS,
+  KEYWORDS_MINSA_ALTA_CONFIANZA,
+  KEYWORDS_RECETA_OBLIGATORIA,
+} from '@/lib/filtroSanitario/tiposFiltro';
 
 export interface ProductoFarmaceutico {
   numeroFila: number;
@@ -53,137 +60,24 @@ export interface ProductoFarmaceutico {
   observaciones: string;
 }
 
-// Palabras clave para detectar productos farmacéuticos
-const PALABRAS_FARMACEUTICAS = [
-  // Medicamentos generales
-  'medicine', 'medication', 'medicamento', 'medicamentos', 'drug', 'drugs',
-  'pharmaceutical', 'pharma', 'farmaceutico', 'farmacia', 'rx',
-  
-  // Formas farmacéuticas
-  'tablet', 'tablets', 'tableta', 'tabletas', 'pastilla', 'pastillas',
-  'pill', 'pills', 'capsule', 'capsules', 'capsula', 'capsulas',
-  'syrup', 'jarabe', 'injection', 'inyeccion', 'inyectable',
-  'cream', 'crema', 'ointment', 'unguento', 'pomada',
-  'drops', 'gotas', 'spray', 'suspension', 'solucion', 'solution',
-  'suppository', 'supositorio', 'patch', 'parche', 'gel', 'lotion',
-  'inhaler', 'inhalador', 'nebulizer', 'nebulizador', 'ampolla', 'ampoule',
-  
-  // Antibióticos
-  'antibiotic', 'antibiotico', 'amoxicillin', 'amoxicilina',
-  'azithromycin', 'azitromicina', 'ciprofloxacin', 'ciprofloxacino',
-  'penicillin', 'penicilina', 'cephalexin', 'cefalexina',
-  'doxycycline', 'doxiciclina', 'metronidazole', 'metronidazol',
-  'clindamycin', 'clindamicina', 'levofloxacin', 'levofloxacino',
-  'erythromycin', 'eritromicina', 'tetracycline', 'tetraciclina',
-  
-  // Analgésicos y antiinflamatorios
-  'painkiller', 'analgesic', 'analgesico', 'pain relief',
-  'ibuprofen', 'ibuprofeno', 'acetaminophen', 'acetaminofen',
-  'paracetamol', 'aspirin', 'aspirina', 'naproxen', 'naproxeno',
-  'diclofenac', 'diclofenaco', 'meloxicam', 'celecoxib',
-  'tramadol', 'codeine', 'codeina', 'morphine', 'morfina',
-  'oxycodone', 'oxicodona', 'hydrocodone', 'fentanyl', 'fentanilo',
-  
-  // Cardiovasculares
-  'cardiovascular', 'blood pressure', 'presion arterial',
-  'lisinopril', 'losartan', 'amlodipine', 'amlodipino',
-  'metoprolol', 'atenolol', 'carvedilol', 'valsartan',
-  'enalapril', 'ramipril', 'nifedipine', 'nifedipino',
-  'diltiazem', 'verapamil', 'furosemide', 'furosemida',
-  'hydrochlorothiazide', 'hidroclorotiazida', 'spironolactone',
-  'warfarin', 'warfarina', 'clopidogrel', 'aspirin cardio',
-  
-  // Diabetes
-  'diabetes', 'diabetic', 'diabetico', 'insulin', 'insulina',
-  'metformin', 'metformina', 'glibenclamide', 'glibenclamida',
-  'glimepiride', 'glimepirida', 'sitagliptin', 'sitagliptina',
-  'pioglitazone', 'pioglitazona', 'gliclazide', 'gliclazida',
-  'glipizide', 'glipizida', 'glucometer', 'glucometro',
-  
-  // Psicotrópicos y neurológicos
-  'antidepressant', 'antidepresivo', 'anxiety', 'ansiedad',
-  'sertraline', 'sertralina', 'fluoxetine', 'fluoxetina',
-  'escitalopram', 'paroxetine', 'paroxetina', 'venlafaxine',
-  'alprazolam', 'clonazepam', 'lorazepam', 'diazepam',
-  'zolpidem', 'pregabalin', 'pregabalina', 'gabapentin', 'gabapentina',
-  'carbamazepine', 'carbamazepina', 'valproic', 'valproato',
-  'lamotrigine', 'lamotrigina', 'lithium', 'litio',
-  'olanzapine', 'olanzapina', 'risperidone', 'risperidona',
-  'quetiapine', 'quetiapina', 'aripiprazole', 'aripiprazol',
-  
-  // Hormonales
-  'hormone', 'hormona', 'thyroid', 'tiroides', 'levothyroxine', 'levotiroxina',
-  'testosterone', 'testosterona', 'estrogen', 'estrogeno',
-  'progesterone', 'progesterona', 'prednisone', 'prednisona',
-  'dexamethasone', 'dexametasona', 'hydrocortisone', 'hidrocortisona',
-  'birth control', 'anticonceptivo', 'contraceptive',
-  
-  // Gastro
-  'omeprazole', 'omeprazol', 'pantoprazole', 'pantoprazol',
-  'esomeprazole', 'esomeprazol', 'ranitidine', 'ranitidina',
-  'antacid', 'antiacido', 'laxative', 'laxante',
-  
-  // Alergias y respiratorio
-  'antihistamine', 'antihistaminico', 'loratadine', 'loratadina',
-  'cetirizine', 'cetirizina', 'fexofenadine', 'fexofenadina',
-  'montelukast', 'salbutamol', 'albuterol', 'budesonide',
-  'fluticasone', 'fluticasona', 'beclomethasone',
-  
-  // Oftálmicos y óticos
-  'eye drops', 'gotas oftalmicas', 'ophthalmic', 'oftalmico',
-  'ear drops', 'gotas oticas', 'otic', 'otico',
-  
-  // Dermatológicos médicos
-  'tretinoin', 'tretinoina', 'adapalene', 'clotrimazole', 'clotrimazol',
-  'ketoconazole', 'ketoconazol', 'fluconazole', 'fluconazol',
-  'terbinafine', 'terbinafina', 'antifungal', 'antifungico',
-  
-  // Suplementos controlados
-  'controlled substance', 'sustancia controlada', 'narcotic', 'narcotico',
-  'opioid', 'opioide', 'benzodiazepine', 'benzodiazepina',
-  'stimulant', 'estimulante', 'sedative', 'sedante',
-  'barbiturate', 'barbiturico', 'amphetamine', 'anfetamina',
-  
-  // Equipos médicos que requieren registro
-  'syringe', 'jeringa', 'needle', 'aguja', 'catheter', 'cateter',
-  'lancet', 'lanceta', 'test strip', 'tira reactiva',
-  'oximeter', 'oximetro', 'stethoscope', 'estetoscopio',
-  'thermometer', 'termometro', 'blood pressure', 'tensiometro',
-  'glucometer', 'glucometro', 'nebulizer', 'nebulizador',
-  'cpap', 'bipap', 'oxygen concentrator', 'concentrador oxigeno',
-  
-  // Genéricos y marcas comunes
-  'vitamina', 'vitamin', 'supplement', 'suplemento',
-  'health supplement', 'dietary supplement', 'multivitamin',
-  'protein powder', 'proteina', 'amino acid', 'aminoacido',
-  'probiotic', 'probiotico', 'prebiotic', 'prebiotico',
-  'omega', 'fish oil', 'aceite pescado', 'colageno', 'collagen',
-  
-  // Medicamentos específicos de Panamá / Latinoamérica
-  'tylenol', 'advil', 'motrin', 'benadryl', 'claritin',
-  'zyrtec', 'allegra', 'pepto', 'tums', 'mylanta',
-  'nexium', 'prilosec', 'zantac', 'pepcid',
-  'lipitor', 'crestor', 'zocor', 'simvastatin',
-  'synthroid', 'levothroid', 'cytomel',
-  'ambien', 'lunesta', 'sonata', 'restoril',
-  'xanax', 'valium', 'ativan', 'klonopin', 'librium',
-  'prozac', 'zoloft', 'paxil', 'lexapro', 'celexa',
-  'wellbutrin', 'effexor', 'cymbalta', 'pristiq',
-  'adderall', 'ritalin', 'concerta', 'vyvanse', 'strattera',
-  'vicodin', 'percocet', 'oxycontin', 'norco', 'dilaudid',
-  'suboxone', 'methadone', 'naloxone', 'narcan',
-  
-  // Cosméticos medicados / dermacéuticos
-  'retinol', 'tretinoin', 'retin-a', 'differin',
-  'benzoyl peroxide', 'salicylic acid', 'acido salicilico',
-  'hydroquinone', 'hidroquinona', 'minoxidil', 'rogaine',
-  'latisse', 'bimatoprost'
-];
+// Palabras clave para detectar productos farmacéuticos (enfoque estricto: medicamentos)
+// Nota: se excluyen suplementos/cosméticos para evitar falsos positivos.
+const PALABRAS_FARMACEUTICAS = KEYWORDS_MINSA_ALTA_CONFIANZA;
+
+function normalizarHTS(htsCode?: string): string {
+  if (!htsCode) return '';
+  // Mantener solo dígitos (ej: "3004.90.10" -> "30049010")
+  return htsCode.replace(/\D/g, '');
+}
+
 
 /**
  * Detecta si un producto es farmacéutico basado en su descripción
  */
-export function detectarProductoFarmaceutico(descripcion: string): {
+export function detectarProductoFarmaceutico(
+  descripcion: string,
+  htsCode?: string
+): {
   esFarmaceutico: boolean;
   palabrasDetectadas: string[];
   tipoProducto: string;
@@ -191,39 +85,66 @@ export function detectarProductoFarmaceutico(descripcion: string): {
   if (!descripcion) {
     return { esFarmaceutico: false, palabrasDetectadas: [], tipoProducto: 'general' };
   }
-  
+
   const descLower = descripcion.toLowerCase();
+
+  // 0) Exclusiones por descripción (cosméticos, alimentos, electrónica, etc.)
+  if (EXCLUSIONES_FARMA.some((ex) => descLower.includes(ex.toLowerCase()))) {
+    return { esFarmaceutico: false, palabrasDetectadas: [], tipoProducto: 'general' };
+  }
+
   const palabrasDetectadas: string[] = [];
   let tipoProducto = 'medicamento_general';
-  
-  // Buscar cada palabra farmacéutica
+
+  // 1) HTS manda: excluir capítulos confusos y priorizar capítulo 30
+  const hts = normalizarHTS(htsCode);
+  const hts4 = hts.slice(0, 4);
+
+  if (hts4 && HTS_EXCLUIDOS.some((p) => hts4.startsWith(p))) {
+    return { esFarmaceutico: false, palabrasDetectadas: [], tipoProducto: 'general' };
+  }
+
+  const htsEsFarma = hts4 && HTS_FARMACEUTICOS.some((p) => hts4.startsWith(p));
+  if (htsEsFarma) {
+    palabrasDetectadas.push(`HTS:${hts4}`);
+  }
+
+  // 2) Keywords de alta confianza (solo medicamentos)
   for (const palabra of PALABRAS_FARMACEUTICAS) {
     if (descLower.includes(palabra.toLowerCase())) {
       palabrasDetectadas.push(palabra);
     }
   }
-  
-  // Determinar tipo específico
-  if (palabrasDetectadas.some(p => ['antibiotic', 'antibiotico', 'amoxicillin', 'azithromycin', 'ciprofloxacin', 'penicillin'].includes(p.toLowerCase()))) {
+
+  // 3) Determinar tipo específico (mantener lógica existente)
+  if (palabrasDetectadas.some((p) => ['antibiotic', 'antibiotico', 'amoxicillin', 'azithromycin', 'ciprofloxacin', 'penicillin'].includes(p.toLowerCase()))) {
     tipoProducto = 'antibiotico';
-  } else if (palabrasDetectadas.some(p => ['alprazolam', 'clonazepam', 'diazepam', 'lorazepam', 'zolpidem'].includes(p.toLowerCase()))) {
+  } else if (palabrasDetectadas.some((p) => ['alprazolam', 'clonazepam', 'diazepam', 'lorazepam', 'zolpidem'].includes(p.toLowerCase()))) {
     tipoProducto = 'psicotropico_controlado';
-  } else if (palabrasDetectadas.some(p => ['tramadol', 'codeine', 'morphine', 'oxycodone', 'fentanyl'].includes(p.toLowerCase()))) {
+  } else if (palabrasDetectadas.some((p) => ['tramadol', 'codeine', 'morphine', 'oxycodone', 'fentanyl'].includes(p.toLowerCase()))) {
     tipoProducto = 'opioide_controlado';
-  } else if (palabrasDetectadas.some(p => ['insulin', 'insulina', 'metformin', 'diabetes'].includes(p.toLowerCase()))) {
+  } else if (palabrasDetectadas.some((p) => ['insulin', 'insulina', 'metformin', 'diabetes'].includes(p.toLowerCase()))) {
     tipoProducto = 'antidiabetico';
-  } else if (palabrasDetectadas.some(p => ['blood pressure', 'cardiovascular', 'lisinopril', 'losartan'].includes(p.toLowerCase()))) {
+  } else if (palabrasDetectadas.some((p) => ['blood pressure', 'cardiovascular', 'lisinopril', 'losartan'].includes(p.toLowerCase()))) {
     tipoProducto = 'cardiovascular';
-  } else if (palabrasDetectadas.some(p => ['hormone', 'hormona', 'thyroid', 'testosterone'].includes(p.toLowerCase()))) {
+  } else if (palabrasDetectadas.some((p) => ['hormone', 'hormona', 'thyroid', 'testosterone'].includes(p.toLowerCase()))) {
     tipoProducto = 'hormonal';
-  } else if (palabrasDetectadas.some(p => ['syringe', 'jeringa', 'needle', 'catheter'].includes(p.toLowerCase()))) {
+  } else if (palabrasDetectadas.some((p) => ['syringe', 'jeringa', 'needle', 'catheter'].includes(p.toLowerCase()))) {
     tipoProducto = 'dispositivo_medico';
   }
-  
+
+  // Si tiene keyword de receta obligatoria, priorizar como controlado/receta
+  if (KEYWORDS_RECETA_OBLIGATORIA.some((kw) => descLower.includes(kw.toLowerCase()))) {
+    // No forzamos un tipo nuevo; solo dejamos evidencia en palabrasDetectadas
+    palabrasDetectadas.push('receta_obligatoria');
+  }
+
+  const uniq = [...new Set(palabrasDetectadas)];
+
   return {
-    esFarmaceutico: palabrasDetectadas.length > 0,
-    palabrasDetectadas: [...new Set(palabrasDetectadas)],
-    tipoProducto
+    esFarmaceutico: Boolean(htsEsFarma) || uniq.length > 0,
+    palabrasDetectadas: uniq,
+    tipoProducto,
   };
 }
 
@@ -243,11 +164,12 @@ export function extraerProductosFarmaceuticos(
   const productosFarma: ProductoFarmaceutico[] = [];
   
   paquetes.forEach((paq, idx) => {
-    const deteccion = detectarProductoFarmaceutico(paq.description || '');
-    
+    const liq = liquidacionesMap.get(paq.trackingNumber);
+    const hts = (liq?.hsCode || (paq as any).codigoArancelario || '').toString();
+    const deteccion = detectarProductoFarmaceutico(paq.description || '', hts);
+
     if (deteccion.esFarmaceutico) {
-      const liq = liquidacionesMap.get(paq.trackingNumber);
-      
+
       productosFarma.push({
         numeroFila: idx + 1,
         guiaAerea: paq.trackingNumber || '',

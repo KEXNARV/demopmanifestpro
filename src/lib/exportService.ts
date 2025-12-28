@@ -127,126 +127,15 @@ export function generateExportFiles(
     return `Lote1_${category}${datePart}`;
   };
   
-  // 1. Menor USD 100
-  const lowValueRows = allRows.filter(r => r.valueUSD < 100);
-  if (lowValueRows.length > 0) {
+  // Archivo único consolidado (todo el manifiesto)
+  if (allRows.length > 0) {
     files.push({
-      id: 'low-value',
-      name: getName('Menor100'),
-      category: 'Valor < $100',
-      icon: 'dollar-sign',
-      rows: lowValueRows,
-      stats: calculateFileStats(lowValueRows, result.consigneeMap),
-      generated: true,
-      isOptional: false,
-    });
-  }
-
-  // 2. USD 100 o más
-  const highValueRows = allRows.filter(r => r.valueUSD >= 100);
-  if (highValueRows.length > 0) {
-    files.push({
-      id: 'high-value',
-      name: getName('Mayor100'),
-      category: 'Valor ≥ $100',
-      icon: 'trending-up',
-      rows: highValueRows,
-      stats: calculateFileStats(highValueRows, result.consigneeMap),
-      generated: true,
-      isOptional: false,
-    });
-  }
-
-  // 3. Farma - Medicamentos
-  const medicationRows = allRows.filter(r => r.category === 'medication');
-  if (medicationRows.length > 0) {
-    files.push({
-      id: 'farma-medication',
-      name: getName('Medicamentos'),
-      category: 'Medicamentos',
-      icon: 'pill',
-      rows: medicationRows,
-      stats: calculateFileStats(medicationRows, result.consigneeMap),
-      generated: true,
-      isOptional: false,
-    });
-  }
-
-  // 4. Farma - Suplementos
-  const supplementRows = allRows.filter(r => r.category === 'supplements');
-  if (supplementRows.length > 0) {
-    files.push({
-      id: 'farma-supplements',
-      name: getName('Suplementos'),
-      category: 'Suplementos',
-      icon: 'leaf',
-      rows: supplementRows,
-      stats: calculateFileStats(supplementRows, result.consigneeMap),
-      generated: true,
-      isOptional: false,
-    });
-  }
-
-  // 5. Farma - Productos Médicos
-  const medicalRows = allRows.filter(r => r.category === 'medical');
-  if (medicalRows.length > 0) {
-    files.push({
-      id: 'farma-medical',
-      name: getName('ProductosMedicos'),
-      category: 'Productos Médicos',
-      icon: 'stethoscope',
-      rows: medicalRows,
-      stats: calculateFileStats(medicalRows, result.consigneeMap),
-      generated: true,
-      isOptional: false,
-    });
-  }
-
-  // 6. Farma - Veterinarios
-  const veterinaryRows = allRows.filter(r => r.category === 'veterinary');
-  if (veterinaryRows.length > 0) {
-    files.push({
-      id: 'farma-veterinary',
-      name: getName('Veterinarios'),
-      category: 'Productos Veterinarios',
-      icon: 'paw-print',
-      rows: veterinaryRows,
-      stats: calculateFileStats(veterinaryRows, result.consigneeMap),
-      generated: true,
-      isOptional: false,
-    });
-  }
-
-  // 7. Consolidados (consignatarios con 2+ paquetes)
-  const consolidatedRows: ManifestRow[] = [];
-  result.consigneeMap.forEach(consignee => {
-    if (consignee.totalPackages >= 2) {
-      consolidatedRows.push(...consignee.packages);
-    }
-  });
-  if (consolidatedRows.length > 0) {
-    files.push({
-      id: 'consolidated',
-      name: getName('Consolidados'),
-      category: 'Entregas Consolidadas',
-      icon: 'users',
-      rows: consolidatedRows,
-      stats: calculateFileStats(consolidatedRows, result.consigneeMap),
-      generated: true,
-      isOptional: false,
-    });
-  }
-
-  // 8. General (no farmacéuticos)
-  const generalRows = allRows.filter(r => r.category === 'general');
-  if (generalRows.length > 0) {
-    files.push({
-      id: 'general',
-      name: getName('General'),
-      category: 'General/Otros',
+      id: 'consolidado',
+      name: getName('Consolidado'),
+      category: 'Consolidado',
       icon: 'package',
-      rows: generalRows,
-      stats: calculateFileStats(generalRows, result.consigneeMap),
+      rows: allRows,
+      stats: calculateFileStats(allRows, result.consigneeMap),
       generated: true,
       isOptional: false,
     });

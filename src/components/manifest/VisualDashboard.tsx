@@ -5,7 +5,6 @@ import {
   Weight,
   Users,
   TrendingUp,
-  Download,
   FileDown,
   Pill,
   Leaf,
@@ -34,7 +33,7 @@ import {
 } from 'lucide-react';
 import { ProcessingConfig, ManifestRow } from '@/types/manifest';
 import { ExtendedProcessingResult } from '@/lib/excelProcessor';
-import { ExportFile, generateExportFiles, downloadExportFile, downloadAllFilesAsZip, downloadConsolidatedExcel, ExportConfig, MAWBExportInfo } from '@/lib/exportService';
+import { ExportFile, generateExportFiles, downloadExportFile, downloadConsolidatedExcel, ExportConfig, MAWBExportInfo } from '@/lib/exportService';
 import { COMPANY_INFO, REGULATORY_INFO, CONTACT_EMERGENCY, PHARMA_REQUIREMENTS } from '@/lib/companyConfig';
 import { PROVINCIAS_PANAMA, ICONOS_REGION, COLORES_PROVINCIA, getRegiones } from '@/lib/panamaGeography';
 import { Button } from '@/components/ui/button';
@@ -272,11 +271,6 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
   const veryHighValueCount = allRows.filter(r => r.valueUSD >= REGULATORY_INFO.thresholds.veryHighValue).length;
   const missingIdCount = allRows.filter(r => !r.identification || r.identification.trim() === '').length;
   const missingAddressCount = allRows.filter(r => !r.address || r.address.trim() === '').length;
-
-
-  const handleDownloadAll = async () => {
-    await downloadAllFilesAsZip(exportFiles, result, mawbExportInfo);
-  };
 
   const handleDownloadConsolidated = () => {
     downloadConsolidatedExcel(exportFiles, result, mawbExportInfo);
@@ -1028,10 +1022,6 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
                 <Button variant="outline" onClick={handleDownloadConsolidated} className="gap-2">
                   <FileDown className="w-4 h-4" />
                   Excel Consolidado (.xlsx)
-                </Button>
-                <Button onClick={handleDownloadAll} className="gap-2">
-                  <Download className="w-4 h-4" />
-                  Descargar Todo ({mawbExportInfo.formatted.replace('MAWB ', '')}.zip)
                 </Button>
               </div>
             </div>
