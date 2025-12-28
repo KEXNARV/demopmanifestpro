@@ -167,6 +167,66 @@ export type Database = {
         }
         Relationships: []
       }
+      consignatarios_fiscales: {
+        Row: {
+          activo: boolean | null
+          ciudad_principal: string | null
+          corredor_id: string | null
+          created_at: string
+          direccion_principal: string | null
+          email: string | null
+          id: string
+          nombre_consignatario: string
+          nombre_normalizado: string
+          notas: string | null
+          provincia_principal: string | null
+          ruc_cedula: string
+          telefono: string | null
+          tipo_documento: string | null
+          ultimo_uso: string | null
+          updated_at: string
+          usos_exitosos: number | null
+        }
+        Insert: {
+          activo?: boolean | null
+          ciudad_principal?: string | null
+          corredor_id?: string | null
+          created_at?: string
+          direccion_principal?: string | null
+          email?: string | null
+          id?: string
+          nombre_consignatario: string
+          nombre_normalizado: string
+          notas?: string | null
+          provincia_principal?: string | null
+          ruc_cedula: string
+          telefono?: string | null
+          tipo_documento?: string | null
+          ultimo_uso?: string | null
+          updated_at?: string
+          usos_exitosos?: number | null
+        }
+        Update: {
+          activo?: boolean | null
+          ciudad_principal?: string | null
+          corredor_id?: string | null
+          created_at?: string
+          direccion_principal?: string | null
+          email?: string | null
+          id?: string
+          nombre_consignatario?: string
+          nombre_normalizado?: string
+          notas?: string | null
+          provincia_principal?: string | null
+          ruc_cedula?: string
+          telefono?: string | null
+          tipo_documento?: string | null
+          ultimo_uso?: string | null
+          updated_at?: string
+          usos_exitosos?: number | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
