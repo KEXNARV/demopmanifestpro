@@ -4,12 +4,11 @@
 // reporte MINSA con todos los datos
 // ============================================
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Pill,
   Leaf,
   Stethoscope,
-  PawPrint,
   Download,
   FileSpreadsheet,
   AlertTriangle,
@@ -19,24 +18,21 @@ import {
   ChevronDown,
   ChevronUp,
   Package,
-  User,
-  Phone,
-  MapPin,
   Hash,
-  DollarSign,
-  Weight,
   FileText,
+  Bot,
+  Sparkles,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ManifestRow } from '@/types/manifest';
 import { Liquidacion } from '@/types/aduanas';
 import {
-  detectarProductoFarmaceutico,
   extraerProductosFarmaceuticos,
   descargarReporteFarmaceuticos,
-  ProductoFarmaceutico,
 } from '@/lib/exportacion/reporteFarmaceuticos';
+import { clasificarConAprendizaje } from '@/lib/core/ServicioAprendizajeHTS';
+import { toast } from 'sonner';
 
 interface FarmaceuticosResumenProps {
   paquetes: ManifestRow[];
@@ -46,14 +42,79 @@ interface FarmaceuticosResumenProps {
 
 export function FarmaceuticosResumen({ paquetes, liquidaciones, mawb }: FarmaceuticosResumenProps) {
   const [isDownloading, setIsDownloading] = useState(false);
+  const [isClassifying, setIsClassifying] = useState(false);
+  const [classificationProgress, setClassificationProgress] = useState({ current: 0, total: 0 });
+  const [enrichedPaquetes, setEnrichedPaquetes] = useState<ManifestRow[]>(paquetes);
   const [showDetalles, setShowDetalles] = useState(false);
   const [showTopProducts, setShowTopProducts] = useState(true);
 
-  // Extraer productos farmacéuticos
+  // Extraer productos farmacéuticos (usa paquetes enriquecidos si existen)
   const productosFarma = useMemo(() => 
-    extraerProductosFarmaceuticos(paquetes, liquidaciones),
-    [paquetes, liquidaciones]
+    extraerProductosFarmaceuticos(enrichedPaquetes, liquidaciones),
+    [enrichedPaquetes, liquidaciones]
   );
+
+  // Clasificar con IA para mejorar detección HTS capítulo 30
+  const handleClasificarConIA = useCallback(async () => {
+    setIsClassifying(true);
+    const sinHTS = paquetes.filter(p => !p.hsCode || p.hsCode === '');
+    setClassificationProgress({ current: 0, total: sinHTS.length });
+
+    if (sinHTS.length === 0) {
+      toast.info('Todos los productos ya tienen código HTS asignado');
+      setIsClassifying(false);
+      return;
+    }
+
+    toast.info(`Clasificando ${sinHTS.length} productos con IA...`);
+    let clasificados = 0;
+    const updated = [...paquetes];
+
+    for (let i = 0; i < sinHTS.length; i++) {
+      const paquete = sinHTS[i];
+      setClassificationProgress({ current: i + 1, total: sinHTS.length });
+
+      try {
+        const resultado = await clasificarConAprendizaje(
+          String(paquete.description || ''),
+          typeof paquete.value === 'number' ? paquete.value : 0,
+          typeof paquete.weight === 'number' ? paquete.weight : undefined,
+          typeof paquete.hawb === 'string' ? paquete.hawb : undefined,
+          mawb
+        );
+
+        if (resultado.success && resultado.clasificacion) {
+          const idx = updated.findIndex(p => p.hawb === paquete.hawb);
+          if (idx !== -1) {
+            updated[idx] = {
+              ...updated[idx],
+              hsCode: resultado.clasificacion.hsCode,
+              htsDescription: resultado.clasificacion.descripcionArancelaria,
+            };
+            clasificados++;
+          }
+        }
+      } catch (error) {
+        console.error(`Error clasificando ${paquete.hawb}:`, error);
+      }
+
+      // Delay para evitar rate limiting
+      if (i < sinHTS.length - 1) {
+        await new Promise(r => setTimeout(r, 200));
+      }
+    }
+
+    setEnrichedPaquetes(updated);
+    setIsClassifying(false);
+    
+    const farmaDetectados = updated.filter(p => 
+      p.hsCode?.startsWith('30') || p.hsCode?.startsWith('2936') || p.hsCode?.startsWith('2941')
+    ).length;
+    
+    toast.success(
+      `✓ ${clasificados} productos clasificados. ${farmaDetectados} con HTS capítulo 30 (farmacéuticos)`
+    );
+  }, [paquetes, mawb]);
 
   // Estadísticas
   const stats = useMemo(() => {
@@ -157,24 +218,46 @@ export function FarmaceuticosResumen({ paquetes, liquidaciones, mawb }: Farmaceu
             </div>
           </div>
 
-          <Button 
-            onClick={handleDescargar} 
-            disabled={isDownloading}
-            size="lg"
-            className="bg-red-600 hover:bg-red-700 gap-2"
-          >
-            {isDownloading ? (
-              <>
-                <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                Generando...
-              </>
-            ) : (
-              <>
-                <Download className="w-5 h-5" />
-                Descargar Reporte MINSA
-              </>
-            )}
-          </Button>
+          <div className="flex flex-col sm:flex-row gap-2">
+            <Button 
+              onClick={handleClasificarConIA} 
+              disabled={isClassifying || isDownloading}
+              variant="outline"
+              size="lg"
+              className="border-blue-400 text-blue-700 hover:bg-blue-50 gap-2"
+            >
+              {isClassifying ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+                  {classificationProgress.current}/{classificationProgress.total}
+                </>
+              ) : (
+                <>
+                  <Bot className="w-5 h-5" />
+                  <Sparkles className="w-4 h-4" />
+                  Clasificar HTS con IA
+                </>
+              )}
+            </Button>
+            <Button 
+              onClick={handleDescargar} 
+              disabled={isDownloading || isClassifying}
+              size="lg"
+              className="bg-red-600 hover:bg-red-700 gap-2"
+            >
+              {isDownloading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                  Generando...
+                </>
+              ) : (
+                <>
+                  <Download className="w-5 h-5" />
+                  Descargar Reporte MINSA
+                </>
+              )}
+            </Button>
+          </div>
         </div>
       </div>
 
