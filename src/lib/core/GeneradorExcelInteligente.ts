@@ -1,7 +1,7 @@
 // ============================================
-// GENERADOR EXCEL INTELIGENTE - IPL CUSTOMS AI
-// Archivo único consolidado con pestañas inteligentes
-// Incluye escenarios de pago según fecha de vencimiento
+// GENERADOR EXCEL CORREDOR IDÓNEO - IPL CUSTOMS AI
+// Formato exacto requerido por Corredor de Aduanas
+// PESTAÑAS: +100 | -100 (1) | -100 (2) | PHARMA | MAWB
 // ============================================
 
 import * as XLSX from 'xlsx';
@@ -10,6 +10,7 @@ import { ManifestRow } from '@/types/manifest';
 import { Liquidacion } from '@/types/aduanas';
 import { format, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { supabase } from '@/integrations/supabase/client';
 
 // ============================================
 // CONFIGURACIÓN DE MORA (BOLETAS REALES ANA)
@@ -25,7 +26,7 @@ const CONFIG_MORA = {
 // ============================================
 // PALABRAS CLAVE PHARMA (MINSA/APA)
 // ============================================
-const PALABRAS_CLAVE_PHARMA = [
+export const PALABRAS_CLAVE_PHARMA = [
   'vitamin', 'vitamina', 'supplement', 'suplemento',
   'skin care', 'skincare', 'cosmetic', 'cosmetico', 'cosmético',
   'health', 'salud', 'medicine', 'medicamento', 'medicina',
@@ -39,9 +40,14 @@ const PALABRAS_CLAVE_PHARMA = [
 ];
 
 // ============================================
+// HTS CODES PHARMA (30XX = farmaceuticos, 33XX = cosméticos)
+// ============================================
+const HTS_PHARMA_PREFIXES = ['30', '33'];
+
+// ============================================
 // DESCRIPCIONES GENÉRICAS PARA REVISIÓN HTS
 // ============================================
-const DESCRIPCIONES_GENERICAS = [
+export const DESCRIPCIONES_GENERICAS = [
   'personal effects', 'efectos personales',
   'merchandise', 'mercancía', 'mercancia',
   'gift', 'regalo', 'present',
@@ -60,23 +66,16 @@ export interface DatosExcelInteligente {
   liquidaciones: Liquidacion[];
   mawb: string;
   fechaProceso: Date;
-  pesoBrutoTotal?: number; // Para auditoría de peso
+  pesoBrutoTotal?: number;
 }
 
-export interface ResultadoAnalisisAI {
-  inconsistencias: Array<{
-    guia: string;
-    tipo: string;
-    mensaje: string;
-    severidad: 'alta' | 'media' | 'baja';
-  }>;
-  alertas: string[];
-  alertasPeso: Array<{
-    guia: string;
-    pesoBruto: number;
-    pesoNeto: number;
-    diferencia: number;
-  }>;
+export interface ResultadoValidacionPeso {
+  valido: boolean;
+  pesoBrutoTotal: number;
+  pesoNetoCalculado: number;
+  diferencia: number;
+  porcentajeDiferencia: number;
+  mensaje: string;
 }
 
 export interface EscenarioPago {
@@ -88,416 +87,426 @@ export interface EscenarioPago {
 }
 
 // ============================================
-// FUNCIONES DE ANÁLISIS AI
+// FORMATO COLUMNAS CORREDOR (ORDEN EXACTO)
+// ============================================
+const HEADER_FORMATO_CORREDOR = [
+  'MAWB',
+  'AWB',
+  'CONSIGNEE',
+  'ADDRESS',
+  'CITY',
+  'DESCRIPTION',
+  'QUANTITY',
+  'WEIGHT',
+  'FREIGHT',
+  'VALUE',
+  'TOTAL VALUE',
+  'PHARMA',
+  'N° CONSECUTIVO'
+];
+
+const HEADER_FORMATO_CORREDOR_LIQUIDACION = [
+  ...HEADER_FORMATO_CORREDOR,
+  'DAI',
+  'ITBMS',
+  'TASA SISTEMA',
+  'TOTAL A PAGAR'
+];
+
+// ============================================
+// FUNCIONES DE VALIDACIÓN
 // ============================================
 
 /**
- * Calcula escenarios de pago según fechas de vencimiento
+ * Valida integridad de pesos antes de permitir descarga
  */
-function calcularEscenariosPago(montoBase: number, fechaRegistro: Date): EscenarioPago[] {
-  const escenarios: EscenarioPago[] = [];
+export async function validarIntegridadPesos(
+  paquetes: ManifestRow[], 
+  pesoBrutoTotal?: number
+): Promise<ResultadoValidacionPeso> {
+  const pesoNetoCalculado = paquetes.reduce((sum, p) => sum + (p.weight || 0), 0);
   
-  // Escenario 1: Pago puntual (sin recargo)
-  escenarios.push({
-    fechaVencimiento: addDays(fechaRegistro, CONFIG_MORA.diasVencimiento1),
-    montoBase,
-    recargo: 0,
-    montoTotal: montoBase,
-    etiqueta: 'PAGO PUNTUAL'
-  });
-  
-  // Escenario 2: Primer recargo (10%)
-  const recargo1 = montoBase * CONFIG_MORA.recargoMora1;
-  escenarios.push({
-    fechaVencimiento: addDays(fechaRegistro, CONFIG_MORA.diasVencimiento2),
-    montoBase,
-    recargo: recargo1,
-    montoTotal: montoBase + recargo1,
-    etiqueta: 'CON 10% MORA'
-  });
-  
-  // Escenario 3: Segundo recargo (20%)
-  const recargo2 = montoBase * CONFIG_MORA.recargoMora2;
-  escenarios.push({
-    fechaVencimiento: addDays(fechaRegistro, CONFIG_MORA.diasVencimiento3),
-    montoBase,
-    recargo: recargo2,
-    montoTotal: montoBase + recargo2,
-    etiqueta: 'CON 20% MORA'
-  });
-  
-  return escenarios;
-}
+  if (!pesoBrutoTotal || pesoBrutoTotal <= 0) {
+    return {
+      valido: true,
+      pesoBrutoTotal: pesoNetoCalculado,
+      pesoNetoCalculado,
+      diferencia: 0,
+      porcentajeDiferencia: 0,
+      mensaje: 'Peso bruto no declarado - usando suma de pesos individuales'
+    };
+  }
 
-/**
- * Audita peso bruto vs suma de pesos netos
- */
-function auditarPesos(paquetes: ManifestRow[], pesoBrutoTotal?: number): ResultadoAnalisisAI['alertasPeso'] {
-  const alertasPeso: ResultadoAnalisisAI['alertasPeso'] = [];
-  
-  // Si hay peso bruto total declarado, comparar con suma
-  if (pesoBrutoTotal && pesoBrutoTotal > 0) {
-    const pesoNetoCalculado = paquetes.reduce((sum, p) => sum + (p.weight || 0), 0);
-    const diferencia = Math.abs(pesoBrutoTotal - pesoNetoCalculado);
-    const porcentajeDiferencia = (diferencia / pesoBrutoTotal) * 100;
-    
-    // Si la diferencia es mayor al 10%, generar alerta
-    if (porcentajeDiferencia > 10) {
-      alertasPeso.push({
+  const diferencia = Math.abs(pesoBrutoTotal - pesoNetoCalculado);
+  const porcentajeDiferencia = (diferencia / pesoBrutoTotal) * 100;
+
+  // Tolerancia del 10%
+  if (porcentajeDiferencia > 10) {
+    // Registrar alerta en base de datos
+    try {
+      await supabase.from('alertas_peso').insert({
         guia: 'CONSOLIDADO',
-        pesoBruto: pesoBrutoTotal,
-        pesoNeto: pesoNetoCalculado,
-        diferencia
+        mawb: paquetes[0]?.mawb || null,
+        peso_bruto_declarado: pesoBrutoTotal,
+        peso_neto_calculado: pesoNetoCalculado,
+        diferencia,
+        porcentaje_diferencia: porcentajeDiferencia,
+        severidad: porcentajeDiferencia > 20 ? 'CRITICA' : 'ALTA'
       });
+    } catch (e) {
+      console.warn('No se pudo registrar alerta de peso:', e);
     }
+
+    return {
+      valido: false,
+      pesoBrutoTotal,
+      pesoNetoCalculado,
+      diferencia,
+      porcentajeDiferencia,
+      mensaje: `⚠️ DISCREPANCIA: Peso bruto (${pesoBrutoTotal.toFixed(2)} lb) difiere ${porcentajeDiferencia.toFixed(1)}% de suma individual (${pesoNetoCalculado.toFixed(2)} lb)`
+    };
   }
-  
-  return alertasPeso;
+
+  return {
+    valido: true,
+    pesoBrutoTotal,
+    pesoNetoCalculado,
+    diferencia,
+    porcentajeDiferencia,
+    mensaje: 'Pesos validados correctamente'
+  };
 }
 
 /**
- * Analiza consistencia peso vs bultos usando lógica AI
+ * Detecta si una guía es PHARMA por HTS o descripción
+ * PRIORIDAD: HTS 30XX/33XX > Palabras clave en descripción
  */
-function analizarConsistenciaPesoBultos(paquetes: ManifestRow[], pesoBrutoTotal?: number): ResultadoAnalisisAI {
-  const inconsistencias: ResultadoAnalisisAI['inconsistencias'] = [];
-  const alertas: string[] = [];
-  const alertasPeso = auditarPesos(paquetes, pesoBrutoTotal);
-
-  // Calcular peso promedio por categoría
-  const pesosPromedio: Record<string, { total: number; count: number }> = {};
-  
-  paquetes.forEach(p => {
-    const cat = p.category || 'general';
-    if (!pesosPromedio[cat]) {
-      pesosPromedio[cat] = { total: 0, count: 0 };
+function esPharma(descripcion: string, htsCode?: string): boolean {
+  // Primero: verificar HTS (30XX = farmacéuticos, 33XX = cosméticos)
+  if (htsCode) {
+    const htsPrefijo = htsCode.replace('.', '').substring(0, 2);
+    if (HTS_PHARMA_PREFIXES.includes(htsPrefijo)) {
+      return true;
     }
-    pesosPromedio[cat].total += p.weight;
-    pesosPromedio[cat].count++;
-  });
-
-  // Detectar outliers
-  paquetes.forEach(p => {
-    const cat = p.category || 'general';
-    const promedio = pesosPromedio[cat].count > 0 
-      ? pesosPromedio[cat].total / pesosPromedio[cat].count 
-      : 0;
-    
-    // Si el peso es 5x mayor al promedio de la categoría
-    if (promedio > 0 && p.weight > promedio * 5) {
-      inconsistencias.push({
-        guia: p.trackingNumber,
-        tipo: 'PESO_ANORMAL',
-        mensaje: `Peso ${p.weight.toFixed(2)}lb es 5x mayor al promedio (${promedio.toFixed(2)}lb)`,
-        severidad: 'alta'
-      });
-    }
-
-    // Personal Effects con valor alto = auditoría manual
-    const descLower = (p.description || '').toLowerCase();
-    if (descLower.includes('personal effects') || descLower.includes('efectos personales')) {
-      if (p.valueUSD > 200) {
-        inconsistencias.push({
-          guia: p.trackingNumber,
-          tipo: 'PERSONAL_EFFECTS_ALTO_VALOR',
-          mensaje: `"Personal Effects" con valor $${p.valueUSD.toFixed(2)} requiere auditoría`,
-          severidad: 'alta'
-        });
-      }
-    }
-
-    // Ratio peso/valor anormal
-    if (p.weight > 0 && p.valueUSD > 0) {
-      const ratioValorPeso = p.valueUSD / p.weight;
-      if (ratioValorPeso > 500) {
-        inconsistencias.push({
-          guia: p.trackingNumber,
-          tipo: 'RATIO_VALOR_PESO',
-          mensaje: `Ratio valor/peso ($${ratioValorPeso.toFixed(0)}/lb) inusualmente alto`,
-          severidad: 'media'
-        });
-      }
-    }
-  });
-
-  if (inconsistencias.length > 0) {
-    alertas.push(`Se detectaron ${inconsistencias.length} inconsistencias peso/bultos`);
-  }
-  
-  if (alertasPeso.length > 0) {
-    alertas.push(`⚠️ ALERTA: Discrepancia peso bruto vs neto detectada`);
   }
 
-  return { inconsistencias, alertas, alertasPeso };
-}
-
-/**
- * Detecta si una guía es PHARMA
- */
-function esPharma(descripcion: string): boolean {
+  // Segundo: verificar palabras clave en descripción
   const desc = descripcion.toLowerCase();
   return PALABRAS_CLAVE_PHARMA.some(keyword => desc.includes(keyword.toLowerCase()));
 }
 
 /**
- * Detecta si requiere revisión HTS
+ * Calcula escenarios de pago según fechas de vencimiento
  */
-function requiereRevisionHTS(paquete: ManifestRow, liquidacion?: Liquidacion): boolean {
-  const desc = (paquete.description || '').toLowerCase();
-  
-  // Sin código HTS
-  if (!liquidacion?.hsCode) return true;
-  
-  // Descripción genérica
-  if (DESCRIPCIONES_GENERICAS.some(g => desc.includes(g.toLowerCase()))) {
-    return true;
-  }
-  
-  // Personal Effects con valor alto
-  if ((desc.includes('personal effects') || desc.includes('efectos personales')) && paquete.valueUSD > 150) {
-    return true;
-  }
-  
-  return false;
+function calcularEscenariosPago(montoBase: number, fechaRegistro: Date): EscenarioPago[] {
+  return [
+    {
+      fechaVencimiento: addDays(fechaRegistro, CONFIG_MORA.diasVencimiento1),
+      montoBase,
+      recargo: 0,
+      montoTotal: montoBase,
+      etiqueta: 'PAGO PUNTUAL'
+    },
+    {
+      fechaVencimiento: addDays(fechaRegistro, CONFIG_MORA.diasVencimiento2),
+      montoBase,
+      recargo: montoBase * CONFIG_MORA.recargoMora1,
+      montoTotal: montoBase * (1 + CONFIG_MORA.recargoMora1),
+      etiqueta: 'CON 10% MORA'
+    },
+    {
+      fechaVencimiento: addDays(fechaRegistro, CONFIG_MORA.diasVencimiento3),
+      montoBase,
+      recargo: montoBase * CONFIG_MORA.recargoMora2,
+      montoTotal: montoBase * (1 + CONFIG_MORA.recargoMora2),
+      etiqueta: 'CON 20% MORA'
+    }
+  ];
 }
 
 // ============================================
-// GENERADOR PRINCIPAL
+// FUNCIÓN PARA CREAR FILA EN FORMATO CORREDOR
+// ============================================
+
+function crearFilaFormatoCorredor(
+  paquete: ManifestRow,
+  mawb: string,
+  consecutivo: number,
+  esPharmaFlag: boolean,
+  liquidacion?: Liquidacion,
+  incluirImpuestos = false
+): (string | number)[] {
+  const filaBase = [
+    mawb,
+    paquete.trackingNumber,
+    paquete.recipient || '',
+    paquete.address || '',
+    paquete.city || paquete.detectedCity || '',
+    (paquete.description || '').substring(0, 80),
+    1, // QUANTITY (asumimos 1 por guía)
+    paquete.weight?.toFixed(2) || '0.00',
+    liquidacion?.valorFlete?.toFixed(2) || '0.00', // FREIGHT
+    paquete.valueUSD?.toFixed(2) || '0.00', // VALUE
+    (paquete.valueUSD + (liquidacion?.valorFlete || 0))?.toFixed(2) || '0.00', // TOTAL VALUE
+    esPharmaFlag ? 'SI' : 'NO',
+    consecutivo
+  ];
+
+  if (incluirImpuestos && liquidacion) {
+    // Añadir columnas de impuestos para +100
+    return [
+      ...filaBase,
+      liquidacion.montoDAI?.toFixed(2) || '0.00',
+      liquidacion.montoITBMS?.toFixed(2) || '0.00',
+      liquidacion.tasaAduanera?.toFixed(2) || '2.00',
+      liquidacion.totalAPagar?.toFixed(2) || '0.00'
+    ];
+  }
+
+  return filaBase;
+}
+
+// ============================================
+// GENERADOR PRINCIPAL - FORMATO CORREDOR
 // ============================================
 
 export async function generarExcelInteligente(
   datos: DatosExcelInteligente,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  omitirValidacionPeso = false
 ): Promise<Blob> {
   const wb = XLSX.utils.book_new();
-  const { paquetes, liquidaciones, mawb, fechaProceso } = datos;
+  const { paquetes, liquidaciones, mawb, fechaProceso, pesoBrutoTotal } = datos;
 
   onProgress?.(5);
+
+  // ══════════════════════════════════════════════════════════
+  // VALIDAR INTEGRIDAD DE PESOS (BLOQUEANTE)
+  // ══════════════════════════════════════════════════════════
+  if (!omitirValidacionPeso) {
+    const validacionPeso = await validarIntegridadPesos(paquetes, pesoBrutoTotal);
+    if (!validacionPeso.valido) {
+      throw new Error(validacionPeso.mensaje);
+    }
+  }
+
+  onProgress?.(10);
 
   // Crear mapa de liquidaciones para búsqueda rápida
   const liqMap = new Map<string, Liquidacion>();
   liquidaciones.forEach(l => liqMap.set(l.numeroGuia, l));
 
   // ══════════════════════════════════════════════════════════
-  // CLASIFICAR PAQUETES EN CATEGORÍAS
+  // CLASIFICAR PAQUETES CON PRIORIDAD PHARMA
+  // Lógica: PHARMA primero (sin importar valor), luego +100 / -100
   // ══════════════════════════════════════════════════════════
   
-  const liquidacionMas100: Array<{ paquete: ManifestRow; liquidacion: Liquidacion }> = [];
-  const deMinimisTodos: Array<{ paquete: ManifestRow; liquidacion?: Liquidacion }> = [];
-  const pharma: Array<{ paquete: ManifestRow; liquidacion?: Liquidacion }> = [];
-  const revisionHTS: Array<{ paquete: ManifestRow; liquidacion?: Liquidacion; motivo: string }> = [];
+  const pharmaList: Array<{ paquete: ManifestRow; liquidacion?: Liquidacion }> = [];
+  const mas100List: Array<{ paquete: ManifestRow; liquidacion: Liquidacion }> = [];
+  const menos100List: Array<{ paquete: ManifestRow; liquidacion?: Liquidacion }> = [];
 
   paquetes.forEach(paquete => {
     const liq = liqMap.get(paquete.trackingNumber);
     const desc = paquete.description || '';
-    
-    // Primero: verificar si es PHARMA (prioridad sobre valor)
-    if (esPharma(desc)) {
-      pharma.push({ paquete, liquidacion: liq });
+    const hts = liq?.hsCode || '';
+
+    // PRIORIDAD 1: PHARMA (HTS 30/33 o palabras clave)
+    if (esPharma(desc, hts)) {
+      pharmaList.push({ paquete, liquidacion: liq });
       return;
     }
-    
-    // Verificar si requiere revisión HTS
-    if (requiereRevisionHTS(paquete, liq)) {
-      const motivos: string[] = [];
-      if (!liq?.hsCode) motivos.push('Sin código HTS');
-      const descLower = desc.toLowerCase();
-      if (DESCRIPCIONES_GENERICAS.some(g => descLower.includes(g))) {
-        motivos.push('Descripción genérica');
-      }
-      if ((descLower.includes('personal effects') || descLower.includes('efectos personales')) && paquete.valueUSD > 150) {
-        motivos.push('Personal Effects alto valor');
-      }
-      
-      revisionHTS.push({ 
-        paquete, 
-        liquidacion: liq, 
-        motivo: motivos.join(', ') || 'Requiere clasificación'
-      });
-      return;
-    }
-    
-    // Clasificar por valor
+
+    // PRIORIDAD 2: Por valor
     if (paquete.valueUSD >= 100) {
       if (liq) {
-        liquidacionMas100.push({ paquete, liquidacion: liq });
+        mas100List.push({ paquete, liquidacion: liq });
+      } else {
+        // Sin liquidación pero >= $100, necesita liquidación
+        mas100List.push({ paquete, liquidacion: {
+          id: `temp-${paquete.trackingNumber}`,
+          numeroGuia: paquete.trackingNumber,
+          manifiestoId: mawb,
+          categoriaAduanera: 'C',
+          categoriaDescripcion: 'Pendiente liquidación',
+          valorFOB: paquete.valueUSD,
+          valorFlete: 0,
+          valorSeguro: paquete.valueUSD * 0.015,
+          valorCIF: paquete.valueUSD * 1.015,
+          monedaOriginal: 'USD',
+          tipoCambio: 1,
+          percentDAI: 0,
+          percentISC: 0,
+          percentITBMS: 7,
+          montoDAI: 0,
+          baseISC: 0,
+          montoISC: 0,
+          baseITBMS: paquete.valueUSD * 1.015,
+          montoITBMS: paquete.valueUSD * 1.015 * 0.07,
+          tasaAduanera: 2,
+          tasasAdicionales: 0,
+          totalTributos: paquete.valueUSD * 1.015 * 0.07,
+          totalAPagar: (paquete.valueUSD * 1.015 * 0.07) + 2,
+          estado: 'pendiente_hs_code',
+          tieneRestricciones: false,
+          restricciones: [],
+          observaciones: [],
+          requiereRevisionManual: true,
+          motivoRevisionManual: 'Sin clasificación HTS',
+          calculadaPor: 'sistema',
+          fechaCalculo: new Date().toISOString(),
+          version: 1
+        }});
       }
     } else {
-      deMinimisTodos.push({ paquete, liquidacion: liq });
+      menos100List.push({ paquete, liquidacion: liq });
     }
   });
 
-  onProgress?.(20);
-
-  // Análisis AI con auditoría de peso
-  const analisisAI = analizarConsistenciaPesoBultos(paquetes, datos.pesoBrutoTotal);
+  onProgress?.(25);
 
   // ══════════════════════════════════════════════════════════
-  // PESTAÑA 1: +100 (LIQUIDACIÓN) CON ESCENARIOS DE PAGO
-  // Formato: RUC/Cédula | Nombre | Guía | CIF | DAI | ITBMS | Pago Puntual | +10% Mora | +20% Mora
+  // PESTAÑA 1: +100 (LIQUIDACIÓN CON IMPUESTOS)
   // ══════════════════════════════════════════════════════════
-  
-  const headerLiquidacion = [
-    'RUC/Cédula', 'Consignatario', 'Guía', 'Descripción',
-    'CIF USD', 'DAI %', 'DAI USD', 'ITBMS %', 'ITBMS USD', 
-    'Tasa Aduana', 'PAGO PUNTUAL', 'CON 10% MORA', 'CON 20% MORA', 'HTS Code'
-  ];
 
-  const dataLiquidacion: (string | number)[][] = [headerLiquidacion];
-  
-  liquidacionMas100.forEach(({ paquete, liquidacion }) => {
-    // Calcular escenarios de pago
-    const escenarios = calcularEscenariosPago(liquidacion.totalAPagar, fechaProceso);
-    
-    dataLiquidacion.push([
-      paquete.identification || 'S/I',
-      paquete.recipient || '',
-      paquete.trackingNumber,
-      (paquete.description || '').substring(0, 60),
-      liquidacion.valorCIF.toFixed(2),
-      liquidacion.percentDAI.toFixed(2),
-      liquidacion.montoDAI.toFixed(2),
-      liquidacion.percentITBMS.toFixed(2),
-      liquidacion.montoITBMS.toFixed(2),
-      liquidacion.tasaAduanera.toFixed(2),
-      `B/. ${escenarios[0].montoTotal.toFixed(2)}`,  // Pago puntual
-      `B/. ${escenarios[1].montoTotal.toFixed(2)}`,  // +10% mora
-      `B/. ${escenarios[2].montoTotal.toFixed(2)}`,  // +20% mora
-      liquidacion.hsCode || 'PENDIENTE'
-    ]);
+  const dataMas100: (string | number)[][] = [HEADER_FORMATO_CORREDOR_LIQUIDACION];
+  let consecutivo = 1;
+
+  mas100List.forEach(({ paquete, liquidacion }) => {
+    dataMas100.push(crearFilaFormatoCorredor(
+      paquete, 
+      mawb, 
+      consecutivo++, 
+      false, 
+      liquidacion,
+      true // incluir impuestos
+    ));
   });
 
-  // Agregar fila de totales con escenarios
-  if (liquidacionMas100.length > 0) {
-    const totales = liquidacionMas100.reduce((acc, { liquidacion }) => ({
-      cif: acc.cif + liquidacion.valorCIF,
+  // Fila de totales
+  if (mas100List.length > 0) {
+    const totales = mas100List.reduce((acc, { liquidacion }) => ({
+      weight: acc.weight + (liquidacion.valorFOB > 0 ? 0 : 0), // peso ya está en filas
+      value: acc.value + liquidacion.valorFOB,
+      totalValue: acc.totalValue + liquidacion.valorCIF,
       dai: acc.dai + liquidacion.montoDAI,
       itbms: acc.itbms + liquidacion.montoITBMS,
       tasa: acc.tasa + liquidacion.tasaAduanera,
       total: acc.total + liquidacion.totalAPagar
-    }), { cif: 0, dai: 0, itbms: 0, tasa: 0, total: 0 });
+    }), { weight: 0, value: 0, totalValue: 0, dai: 0, itbms: 0, tasa: 0, total: 0 });
 
-    const totalEscenarios = calcularEscenariosPago(totales.total, fechaProceso);
+    const escenarios = calcularEscenariosPago(totales.total, fechaProceso);
 
-    dataLiquidacion.push([]);
-    dataLiquidacion.push([
-      '', 'TOTALES', '', '',
-      totales.cif.toFixed(2), '',
-      totales.dai.toFixed(2), '',
-      totales.itbms.toFixed(2),
-      totales.tasa.toFixed(2),
-      `B/. ${totalEscenarios[0].montoTotal.toFixed(2)}`,
-      `B/. ${totalEscenarios[1].montoTotal.toFixed(2)}`,
-      `B/. ${totalEscenarios[2].montoTotal.toFixed(2)}`,
+    dataMas100.push([]); // Fila vacía
+    dataMas100.push([
+      '', 'TOTALES', '', '', '', '', mas100List.length,
+      '', '', totales.value.toFixed(2), totales.totalValue.toFixed(2), '',
+      '', totales.dai.toFixed(2), totales.itbms.toFixed(2), totales.tasa.toFixed(2), 
+      `B/. ${totales.total.toFixed(2)}`
+    ]);
+
+    // Escenarios de pago
+    dataMas100.push([]);
+    dataMas100.push([
+      'ESCENARIOS DE PAGO:', '', '', '', '', '', '',
+      '', '', '', '', '', '',
+      `PUNTUAL: B/. ${escenarios[0].montoTotal.toFixed(2)}`,
+      `+10%: B/. ${escenarios[1].montoTotal.toFixed(2)}`,
+      `+20%: B/. ${escenarios[2].montoTotal.toFixed(2)}`,
       ''
     ]);
-    
-    // Agregar fechas de vencimiento
-    dataLiquidacion.push([]);
-    dataLiquidacion.push([
-      '', 'FECHAS VENCIMIENTO:', '', '', '', '', '', '', '', '',
-      format(totalEscenarios[0].fechaVencimiento, 'dd/MM/yyyy'),
-      format(totalEscenarios[1].fechaVencimiento, 'dd/MM/yyyy'),
-      format(totalEscenarios[2].fechaVencimiento, 'dd/MM/yyyy'),
+    dataMas100.push([
+      'VENCIMIENTOS:', '', '', '', '', '', '',
+      '', '', '', '', '', '',
+      format(escenarios[0].fechaVencimiento, 'dd/MM/yyyy'),
+      format(escenarios[1].fechaVencimiento, 'dd/MM/yyyy'),
+      format(escenarios[2].fechaVencimiento, 'dd/MM/yyyy'),
       ''
     ]);
   }
 
-  const wsLiquidacion = XLSX.utils.aoa_to_sheet(dataLiquidacion);
-  wsLiquidacion['!cols'] = [
-    { wch: 15 }, { wch: 25 }, { wch: 18 }, { wch: 40 },
-    { wch: 12 }, { wch: 8 }, { wch: 10 }, { wch: 8 }, { wch: 10 },
-    { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 12 }
+  const wsMas100 = XLSX.utils.aoa_to_sheet(dataMas100);
+  wsMas100['!cols'] = [
+    { wch: 15 }, { wch: 18 }, { wch: 25 }, { wch: 30 }, { wch: 15 },
+    { wch: 40 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+    { wch: 12 }, { wch: 8 }, { wch: 12 }, { wch: 10 }, { wch: 10 },
+    { wch: 12 }, { wch: 14 }
   ];
-  XLSX.utils.book_append_sheet(wb, wsLiquidacion, '+100');
+  XLSX.utils.book_append_sheet(wb, wsMas100, '+100');
 
-  onProgress?.(35);
+  onProgress?.(40);
 
   // ══════════════════════════════════════════════════════════
   // PESTAÑAS -100 (1) y -100 (2): DE MINIMIS
-  // Dividir en 2 grupos si > 100 registros
+  // Máximo 100 registros por pestaña
   // ══════════════════════════════════════════════════════════
-  
-  const headerDeMinimis = [
-    'RUC/Cédula', 'Consignatario', 'Guía', 'Descripción', 
-    'Valor USD', 'Peso LB', 'Teléfono', 'Provincia', 'Estado'
-  ];
 
-  if (deMinimisTodos.length > 0) {
-    const mitad = Math.ceil(deMinimisTodos.length / 2);
-    const necesitaDividir = deMinimisTodos.length > 100;
+  const LIMITE_POR_HOJA = 100;
+  consecutivo = 1;
 
-    const crearHojaDeMinimis = (
-      items: typeof deMinimisTodos, 
-      nombreHoja: string
+  if (menos100List.length > 0) {
+    const crearHojaMenos100 = (
+      items: typeof menos100List, 
+      nombreHoja: string,
+      inicioConsecutivo: number
     ) => {
-      const data: (string | number)[][] = [headerDeMinimis];
-      
-      items.forEach(({ paquete }) => {
-        data.push([
-          paquete.identification || 'S/I',
-          paquete.recipient || '',
-          paquete.trackingNumber,
-          (paquete.description || '').substring(0, 50),
-          paquete.valueUSD.toFixed(2),
-          paquete.weight.toFixed(2),
-          paquete.phone || '',
-          paquete.detectedProvince || paquete.province || '',
-          'DE MINIMIS'
-        ]);
+      const data: (string | number)[][] = [HEADER_FORMATO_CORREDOR];
+      let cons = inicioConsecutivo;
+
+      items.forEach(({ paquete, liquidacion }) => {
+        data.push(crearFilaFormatoCorredor(
+          paquete,
+          mawb,
+          cons++,
+          false,
+          liquidacion,
+          false
+        ));
       });
 
       const ws = XLSX.utils.aoa_to_sheet(data);
       ws['!cols'] = [
-        { wch: 15 }, { wch: 25 }, { wch: 18 }, { wch: 40 },
-        { wch: 12 }, { wch: 10 }, { wch: 15 }, { wch: 15 }, { wch: 12 }
+        { wch: 15 }, { wch: 18 }, { wch: 25 }, { wch: 30 }, { wch: 15 },
+        { wch: 40 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+        { wch: 12 }, { wch: 8 }, { wch: 12 }
       ];
       XLSX.utils.book_append_sheet(wb, ws, nombreHoja);
     };
 
-    if (necesitaDividir) {
-      crearHojaDeMinimis(deMinimisTodos.slice(0, mitad), '-100 (1)');
-      crearHojaDeMinimis(deMinimisTodos.slice(mitad), '-100 (2)');
+    if (menos100List.length > LIMITE_POR_HOJA) {
+      // Dividir en múltiples hojas
+      crearHojaMenos100(menos100List.slice(0, LIMITE_POR_HOJA), '-100 (1)', 1);
+      crearHojaMenos100(menos100List.slice(LIMITE_POR_HOJA), '-100 (2)', LIMITE_POR_HOJA + 1);
     } else {
-      crearHojaDeMinimis(deMinimisTodos, '-100');
+      crearHojaMenos100(menos100List, '-100 (1)', 1);
     }
   }
 
   onProgress?.(55);
 
   // ══════════════════════════════════════════════════════════
-  // PESTAÑA PHARMA: Productos MINSA/APA
+  // PESTAÑA PHARMA: Productos con restricciones sanitarias
   // ══════════════════════════════════════════════════════════
-  
-  if (pharma.length > 0) {
-    const headerPharma = [
-      'Guía', 'Consignatario', 'Descripción', 'Valor USD',
-      'Palabras Detectadas', 'Autoridad', 'Acción Requerida'
-    ];
 
-    const dataPharma: (string | number)[][] = [headerPharma];
-    
-    pharma.forEach(({ paquete }) => {
-      const desc = paquete.description || '';
-      const palabrasEncontradas = PALABRAS_CLAVE_PHARMA
-        .filter(kw => desc.toLowerCase().includes(kw.toLowerCase()))
-        .slice(0, 3)
-        .join(', ');
+  if (pharmaList.length > 0) {
+    const dataPharma: (string | number)[][] = [HEADER_FORMATO_CORREDOR];
+    consecutivo = 1;
 
-      dataPharma.push([
-        paquete.trackingNumber,
-        paquete.recipient || '',
-        desc.substring(0, 60),
-        paquete.valueUSD.toFixed(2),
-        palabrasEncontradas,
-        'MINSA / APA',
-        'Requiere verificación sanitaria'
-      ]);
+    pharmaList.forEach(({ paquete, liquidacion }) => {
+      dataPharma.push(crearFilaFormatoCorredor(
+        paquete,
+        mawb,
+        consecutivo++,
+        true, // Es PHARMA
+        liquidacion,
+        false
+      ));
     });
 
     const wsPharma = XLSX.utils.aoa_to_sheet(dataPharma);
     wsPharma['!cols'] = [
-      { wch: 18 }, { wch: 25 }, { wch: 45 }, { wch: 12 },
-      { wch: 25 }, { wch: 15 }, { wch: 30 }
+      { wch: 15 }, { wch: 18 }, { wch: 25 }, { wch: 30 }, { wch: 15 },
+      { wch: 40 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+      { wch: 12 }, { wch: 8 }, { wch: 12 }
     ];
     XLSX.utils.book_append_sheet(wb, wsPharma, 'PHARMA');
   }
@@ -505,111 +514,55 @@ export async function generarExcelInteligente(
   onProgress?.(70);
 
   // ══════════════════════════════════════════════════════════
-  // PESTAÑA REVISIÓN HTS: Descripciones genéricas o sin código
+  // PESTAÑA MAWB: HOJA DE CONTROL MAESTRO (TODA LA CARGA)
+  // Nombre de hoja: 230-{MAWB}
   // ══════════════════════════════════════════════════════════
-  
-  if (revisionHTS.length > 0) {
-    const headerRevision = [
-      'Guía', 'Consignatario', 'Descripción', 'Valor USD',
-      'Peso LB', 'Motivo Revisión', 'HTS Actual', 'Alerta AI'
-    ];
 
-    const dataRevision: (string | number)[][] = [headerRevision];
+  const dataMaster: (string | number)[][] = [HEADER_FORMATO_CORREDOR];
+  consecutivo = 1;
+
+  // Todos los paquetes en orden original
+  paquetes.forEach(paquete => {
+    const liq = liqMap.get(paquete.trackingNumber);
+    const isPharma = esPharma(paquete.description || '', liq?.hsCode);
     
-    revisionHTS.forEach(({ paquete, liquidacion, motivo }) => {
-      // Buscar alertas AI para esta guía
-      const alertasGuia = analisisAI.inconsistencias
-        .filter(i => i.guia === paquete.trackingNumber)
-        .map(i => i.mensaje)
-        .join('; ');
+    dataMaster.push(crearFilaFormatoCorredor(
+      paquete,
+      mawb,
+      consecutivo++,
+      isPharma,
+      liq,
+      false
+    ));
+  });
 
-      dataRevision.push([
-        paquete.trackingNumber,
-        paquete.recipient || '',
-        (paquete.description || '').substring(0, 50),
-        paquete.valueUSD.toFixed(2),
-        paquete.weight.toFixed(2),
-        motivo,
-        liquidacion?.hsCode || 'SIN CÓDIGO',
-        alertasGuia || '-'
-      ]);
-    });
+  // Resumen al final
+  const totalPeso = paquetes.reduce((s, p) => s + (p.weight || 0), 0);
+  const totalValor = paquetes.reduce((s, p) => s + (p.valueUSD || 0), 0);
 
-    const wsRevision = XLSX.utils.aoa_to_sheet(dataRevision);
-    wsRevision['!cols'] = [
-      { wch: 18 }, { wch: 25 }, { wch: 40 }, { wch: 12 },
-      { wch: 10 }, { wch: 30 }, { wch: 12 }, { wch: 40 }
-    ];
-    XLSX.utils.book_append_sheet(wb, wsRevision, 'REVISIÓN HTS');
-  }
+  dataMaster.push([]);
+  dataMaster.push([
+    'RESUMEN', '', '', '', '', '', paquetes.length,
+    totalPeso.toFixed(2), '', totalValor.toFixed(2), '', '',
+    format(fechaProceso, 'dd/MM/yyyy')
+  ]);
+  dataMaster.push([
+    `+100: ${mas100List.length}`, `PHARMA: ${pharmaList.length}`, 
+    `-100: ${menos100List.length}`, '', '', '', '', '', '', '', '', '', ''
+  ]);
 
-  onProgress?.(85);
-
-  // ══════════════════════════════════════════════════════════
-  // PESTAÑA RESUMEN: Estadísticas y alertas AI
-  // ══════════════════════════════════════════════════════════
-  
-  const resumenData = [
-    ['IPL CUSTOMS AI - REPORTE CONSOLIDADO INTELIGENTE'],
-    [''],
-    ['INFORMACIÓN DEL MANIFIESTO'],
-    ['MAWB:', mawb || 'N/A'],
-    ['Fecha Proceso:', format(fechaProceso, 'PPP', { locale: es })],
-    ['Generado:', format(new Date(), 'PPP HH:mm', { locale: es })],
-    [''],
-    ['═══════════════════════════════════════════'],
-    ['DISTRIBUCIÓN DE PAQUETES'],
-    ['═══════════════════════════════════════════'],
-    [''],
-    ['Categoría', 'Cantidad', 'Pestaña'],
-    ['Liquidación (≥$100)', liquidacionMas100.length, '+100'],
-    ['De Minimis (<$100)', deMinimisTodos.length, deMinimisTodos.length > 100 ? '-100 (1/2)' : '-100'],
-    ['PHARMA (MINSA/APA)', pharma.length, 'PHARMA'],
-    ['Revisión HTS', revisionHTS.length, 'REVISIÓN HTS'],
-    [''],
-    ['TOTAL PAQUETES:', paquetes.length, ''],
-    [''],
-    ['═══════════════════════════════════════════'],
-    ['ANÁLISIS AI - CONSISTENCIA PESO/BULTOS'],
-    ['═══════════════════════════════════════════'],
-    [''],
-    ['Inconsistencias Detectadas:', analisisAI.inconsistencias.length, '']
+  const wsMaster = XLSX.utils.aoa_to_sheet(dataMaster);
+  wsMaster['!cols'] = [
+    { wch: 15 }, { wch: 18 }, { wch: 25 }, { wch: 30 }, { wch: 15 },
+    { wch: 40 }, { wch: 8 }, { wch: 10 }, { wch: 10 }, { wch: 10 },
+    { wch: 12 }, { wch: 8 }, { wch: 12 }
   ];
 
-  // Agregar detalles de inconsistencias
-  if (analisisAI.inconsistencias.length > 0) {
-    resumenData.push(['']);
-    resumenData.push(['Guía', 'Tipo', 'Mensaje']);
-    analisisAI.inconsistencias.slice(0, 10).forEach(inc => {
-      resumenData.push([inc.guia, inc.tipo, inc.mensaje]);
-    });
-    if (analisisAI.inconsistencias.length > 10) {
-      resumenData.push(['', '', `... y ${analisisAI.inconsistencias.length - 10} más`]);
-    }
-  }
+  // Nombre de hoja: 230-MAWB (formato corredor)
+  const mawbClean = mawb.replace(/[^0-9]/g, '').slice(-8) || '00000000';
+  XLSX.utils.book_append_sheet(wb, wsMaster, `230-${mawbClean}`);
 
-  // Totales financieros
-  const totalCIF = liquidacionMas100.reduce((s, { liquidacion }) => s + liquidacion.valorCIF, 0);
-  const totalTributos = liquidacionMas100.reduce((s, { liquidacion }) => s + liquidacion.totalTributos, 0);
-  const totalAPagar = liquidacionMas100.reduce((s, { liquidacion }) => s + liquidacion.totalAPagar, 0);
-
-  resumenData.push(['']);
-  resumenData.push(['═══════════════════════════════════════════']);
-  resumenData.push(['RESUMEN FINANCIERO (Liquidación +100)']);
-  resumenData.push(['═══════════════════════════════════════════']);
-  resumenData.push(['']);
-  resumenData.push(['Total CIF:', `$${totalCIF.toFixed(2)}`, '']);
-  resumenData.push(['Total Tributos:', `$${totalTributos.toFixed(2)}`, '']);
-  resumenData.push(['TOTAL A PAGAR:', `$${totalAPagar.toFixed(2)}`, '']);
-
-  const wsResumen = XLSX.utils.aoa_to_sheet(resumenData);
-  wsResumen['!cols'] = [{ wch: 35 }, { wch: 20 }, { wch: 40 }];
-  
-  // Insertar al inicio
-  wb.SheetNames.unshift('RESUMEN');
-  wb.Sheets['RESUMEN'] = wsResumen;
-
-  onProgress?.(95);
+  onProgress?.(90);
 
   // ══════════════════════════════════════════════════════════
   // GENERAR ARCHIVO
@@ -634,9 +587,10 @@ export async function generarExcelInteligente(
 
 export async function descargarExcelInteligente(
   datos: DatosExcelInteligente,
-  onProgress?: (progress: number) => void
+  onProgress?: (progress: number) => void,
+  omitirValidacionPeso = false
 ): Promise<void> {
-  const blob = await generarExcelInteligente(datos, onProgress);
+  const blob = await generarExcelInteligente(datos, onProgress, omitirValidacionPeso);
   
   const mawbClean = (datos.mawb || 'Manifiesto').replace(/[^a-zA-Z0-9-]/g, '_');
   const fecha = format(new Date(), 'yyyyMMdd_HHmm');
@@ -648,6 +602,7 @@ export async function descargarExcelInteligente(
 export default {
   generarExcelInteligente,
   descargarExcelInteligente,
+  validarIntegridadPesos,
   PALABRAS_CLAVE_PHARMA,
   DESCRIPCIONES_GENERICAS
 };
