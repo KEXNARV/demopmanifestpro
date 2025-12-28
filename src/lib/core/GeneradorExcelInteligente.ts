@@ -372,6 +372,134 @@ export async function generarExcelInteligente(
     }
   });
 
+  onProgress?.(25);
+
+  // ══════════════════════════════════════════════════════════
+  // CALCULAR MÉTRICAS PARA RESUMEN EJECUTIVO
+  // ══════════════════════════════════════════════════════════
+  
+  const totalGuias = paquetes.length;
+  const totalValor = paquetes.reduce((s, p) => s + (p.valueUSD || 0), 0);
+  const totalPeso = paquetes.reduce((s, p) => s + (p.weight || 0), 0);
+  
+  // Calcular totales de impuestos para +100
+  const totalImpuestosMas100 = mas100List.reduce((acc, { liquidacion }) => ({
+    dai: acc.dai + (liquidacion?.montoDAI || 0),
+    itbms: acc.itbms + (liquidacion?.montoITBMS || 0),
+    tasa: acc.tasa + CONFIG_LIQUIDACION.tasaSistema,
+    total: acc.total + (liquidacion?.montoDAI || 0) + (liquidacion?.montoITBMS || 0) + CONFIG_LIQUIDACION.tasaSistema
+  }), { dai: 0, itbms: 0, tasa: 0, total: 0 });
+
+  // Distribución por provincia
+  const distribucionProvincias = new Map<string, { cantidad: number; valor: number; peso: number }>();
+  paquetes.forEach(p => {
+    const prov = p.province || p.detectedProvince || 'Sin Provincia';
+    const current = distribucionProvincias.get(prov) || { cantidad: 0, valor: 0, peso: 0 };
+    distribucionProvincias.set(prov, {
+      cantidad: current.cantidad + 1,
+      valor: current.valor + (p.valueUSD || 0),
+      peso: current.peso + (p.weight || 0)
+    });
+  });
+
+  // Contar consignatarios únicos
+  const consignatariosUnicos = new Set(paquetes.map(p => (p.recipient || '').toLowerCase().trim())).size;
+  
+  // Contar RUC disponibles
+  let conRUC = 0;
+  let sinRUCCount = 0;
+  datosFiscales.forEach(d => {
+    if (d.rucCedula) conRUC++;
+    else sinRUCCount++;
+  });
+
+  // ══════════════════════════════════════════════════════════
+  // CREAR HOJA RESUMEN EJECUTIVO (PRIMERA HOJA)
+  // ══════════════════════════════════════════════════════════
+  
+  const dataResumen: (string | number)[][] = [
+    ['IPL CUSTOMS AI - RESUMEN EJECUTIVO'],
+    [''],
+    ['INFORMACIÓN DEL MANIFIESTO'],
+    ['MAWB:', mawb],
+    ['Fecha de Proceso:', format(fechaProceso, 'dd/MM/yyyy HH:mm', { locale: es })],
+    [''],
+    ['═══════════════════════════════════════════════════════════'],
+    [''],
+    ['TOTALES GENERALES'],
+    ['Total de Guías:', totalGuias],
+    ['Consignatarios Únicos:', consignatariosUnicos],
+    ['Valor Total USD:', `$ ${totalValor.toFixed(2)}`],
+    ['Peso Total (lb):', totalPeso.toFixed(2)],
+    ['Valor Promedio por Guía:', `$ ${(totalValor / totalGuias).toFixed(2)}`],
+    [''],
+    ['═══════════════════════════════════════════════════════════'],
+    [''],
+    ['CLASIFICACIÓN POR CATEGORÍA', 'Cantidad', 'Valor USD', '% del Total'],
+    ['+100 (Requieren Liquidación)', mas100List.length, mas100List.reduce((s, i) => s + i.paquete.valueUSD, 0).toFixed(2), `${((mas100List.length / totalGuias) * 100).toFixed(1)}%`],
+    ['-100 (Exentos)', menos100List.length, menos100List.reduce((s, i) => s + i.paquete.valueUSD, 0).toFixed(2), `${((menos100List.length / totalGuias) * 100).toFixed(1)}%`],
+    ['MINSA (Farmacéuticos)', pharmaList.length, pharmaList.reduce((s, i) => s + i.paquete.valueUSD, 0).toFixed(2), `${((pharmaList.length / totalGuias) * 100).toFixed(1)}%`],
+    [''],
+    ['═══════════════════════════════════════════════════════════'],
+    [''],
+    ['MÉTRICAS DE CUMPLIMIENTO'],
+    ['Guías con RUC/Cédula:', conRUC, `${((conRUC / totalGuias) * 100).toFixed(1)}%`],
+    ['Guías sin RUC/Cédula:', sinRUCCount, `${((sinRUCCount / totalGuias) * 100).toFixed(1)}%`],
+    ['Requieren Revisión:', mas100List.filter(i => !datosFiscales.get(i.paquete.recipient)?.rucCedula).length],
+    [''],
+    ['═══════════════════════════════════════════════════════════'],
+    [''],
+    ['ESTIMACIÓN DE IMPUESTOS (+100)'],
+    ['Total DAI:', `B/. ${totalImpuestosMas100.dai.toFixed(2)}`],
+    ['Total ITBMS:', `B/. ${totalImpuestosMas100.itbms.toFixed(2)}`],
+    ['Tasas de Sistema:', `B/. ${totalImpuestosMas100.tasa.toFixed(2)}`],
+    ['TOTAL A PAGAR:', `B/. ${totalImpuestosMas100.total.toFixed(2)}`],
+    [''],
+    ['═══════════════════════════════════════════════════════════'],
+    [''],
+    ['DISTRIBUCIÓN POR PROVINCIA', 'Cantidad', 'Valor USD', 'Peso (lb)'],
+  ];
+
+  // Agregar provincias ordenadas por cantidad
+  const provinciasOrdenadas = Array.from(distribucionProvincias.entries())
+    .sort((a, b) => b[1].cantidad - a[1].cantidad);
+  
+  provinciasOrdenadas.forEach(([provincia, datos]) => {
+    dataResumen.push([
+      provincia,
+      datos.cantidad,
+      datos.valor.toFixed(2),
+      datos.peso.toFixed(2)
+    ]);
+  });
+
+  dataResumen.push(['']);
+  dataResumen.push(['═══════════════════════════════════════════════════════════']);
+  dataResumen.push(['']);
+  dataResumen.push(['HOJAS INCLUIDAS EN ESTE ARCHIVO:']);
+  dataResumen.push(['• RESUMEN - Esta hoja']);
+  dataResumen.push(['• +100 - Guías con valor ≥$100 (requieren liquidación)']);
+  dataResumen.push(['• -100 (1) - Guías <$100 con consignatarios únicos']);
+  if (menos100List.length > consignatariosUnicos) {
+    dataResumen.push(['• -100 (2) - Guías <$100 con consignatarios repetidos']);
+  }
+  if (pharmaList.length > 0) {
+    dataResumen.push(['• MINSA - Productos farmacéuticos (Cap. 30 HTS)']);
+  }
+  dataResumen.push([`• 230-${mawb.replace(/[^0-9]/g, '').slice(-8)} - Control maestro completo`]);
+  dataResumen.push(['']);
+  dataResumen.push(['Generado por IPL Customs AI - Sistema de Corretaje Aduanal']);
+
+  const wsResumen = XLSX.utils.aoa_to_sheet(dataResumen);
+  wsResumen['!cols'] = [
+    { wch: 35 }, { wch: 15 }, { wch: 15 }, { wch: 15 }
+  ];
+  // Merge para título
+  wsResumen['!merges'] = [
+    { s: { r: 0, c: 0 }, e: { r: 0, c: 3 } }
+  ];
+  XLSX.utils.book_append_sheet(wb, wsResumen, 'RESUMEN');
+
   onProgress?.(30);
 
   // ══════════════════════════════════════════════════════════
@@ -573,9 +701,6 @@ export async function generarExcelInteligente(
     dataMaster.push(fila);
   });
 
-  const totalPeso = paquetes.reduce((s, p) => s + (p.weight || 0), 0);
-  const totalValor = paquetes.reduce((s, p) => s + (p.valueUSD || 0), 0);
-
   dataMaster.push([]);
   dataMaster.push([
     'RESUMEN', '', '', totalValor.toFixed(2), totalPeso.toFixed(2), '', '', '', paquetes.length,
@@ -611,21 +736,13 @@ export async function generarExcelInteligente(
 
   onProgress?.(100);
 
-  // Contar estadísticas fiscales
-  let conRUC = 0;
-  let sinRUC = 0;
-  datosFiscales.forEach(d => {
-    if (d.rucCedula) conRUC++;
-    else sinRUC++;
-  });
-
   return {
     blob,
     guiasSinRUC,
     resumenFiscal: {
       totalGuias: paquetes.length,
       conRUC,
-      sinRUC,
+      sinRUC: sinRUCCount,
       requierenRevision: guiasSinRUC.length
     }
   };
