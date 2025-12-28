@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   Package,
   DollarSign,
@@ -30,8 +30,9 @@ import {
   Calculator,
   ShieldCheck,
   TrendingDown,
+  Brain,
 } from 'lucide-react';
-import { ProcessingConfig } from '@/types/manifest';
+import { ProcessingConfig, ManifestRow } from '@/types/manifest';
 import { ExtendedProcessingResult } from '@/lib/excelProcessor';
 import { ExportFile, generateExportFiles, downloadExportFile, downloadAllFilesAsZip, downloadConsolidatedExcel, ExportConfig, MAWBExportInfo } from '@/lib/exportService';
 import { COMPANY_INFO, REGULATORY_INFO, CONTACT_EMERGENCY, PHARMA_REQUIREMENTS } from '@/lib/companyConfig';
@@ -45,6 +46,7 @@ import { LiquidacionDashboard } from './LiquidacionDashboard';
 import { FarmaceuticosResumen } from './FarmaceuticosResumen';
 import { FiltroSanitarioPanel } from './FiltroSanitarioPanel';
 import { SubvaluacionPanel } from './SubvaluacionPanel';
+import { AgenteAduanalTab } from './AgenteAduanalTab';
 import { generarReporteConsolidado } from '@/lib/aduanas/reporteConsolidado';
 import {
   PieChart,
@@ -95,7 +97,17 @@ const CATEGORY_CONFIG: Record<string, { icon: React.ComponentType<{ className?: 
 
 export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDashboardProps) {
   const { summary, consigneeMap, consigneeStats, consolidatedDeliveries, liquidaciones, resumenLiquidacion } = result;
-  const allRows = result.batches.flatMap(b => b.rows);
+  const initialRows = result.batches.flatMap(b => b.rows);
+  
+  // State para paquetes enriquecidos con clasificación HTS de IA
+  const [enrichedRows, setEnrichedRows] = useState<ManifestRow[]>(initialRows);
+  const allRows = enrichedRows;
+  
+  // Callback cuando la IA procesa los paquetes - actualiza hsCode para subvaluación
+  const handleIAProcessed = useCallback((processedPaquetes: ManifestRow[]) => {
+    console.log('[VisualDashboard] Paquetes enriquecidos con HTS:', processedPaquetes.length);
+    setEnrichedRows(processedPaquetes);
+  }, []);
 
   // Convert MAWBInfo to MAWBExportInfo (use default if no MAWB)
   const mawbExportInfo: MAWBExportInfo = mawbInfo ? {
@@ -1095,6 +1107,15 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
               )}
             </div>
           </div>
+        </TabsContent>
+
+        {/* Agente IA Tab */}
+        <TabsContent value="agente" className="space-y-6">
+          <AgenteAduanalTab 
+            paquetes={allRows} 
+            mawb={mawbExportInfo.mawb}
+            onProcessed={handleIAProcessed}
+          />
         </TabsContent>
       </Tabs>
 
