@@ -8,10 +8,11 @@ import { Arancel } from '@/types/aduanas';
 import { MotorClasificacionHTS, ResultadoClasificacionHTS } from './MotorClasificacionHTS';
 import { MotorLiquidacionSIGA, ResultadoLiquidacionSIGA } from './MotorLiquidacionSIGA';
 import { DetectorRiesgos, AuditoriaLote } from './DetectorRiesgos';
-import { generarExcelConsolidado, DatosExcelConsolidado, descargarExcelConsolidado } from './GeneradorExcelConsolidado';
+import { descargarExcelInteligente, DatosExcelInteligente } from './GeneradorExcelInteligente';
 import { generarFirmaDigital, FirmaDigital, CLAUSULA_RESPONSABILIDAD } from './SistemaFirmaDigital';
 import { GestorRestriccionesAprendidas } from '@/lib/aprendizaje/gestorRestriccionesAprendidas';
 import { devLog } from '@/lib/logger';
+import { Liquidacion } from '@/types/aduanas';
 
 export interface ResultadoProcesamientoCompleto {
   clasificaciones: Map<string, ResultadoClasificacionHTS>;
@@ -83,15 +84,51 @@ export class AgenteAduanalAI {
     
     const firma = await generarFirmaDigital(contenido, corredor.id, corredor.nombre, documentoId);
     
-    const datos: DatosExcelConsolidado = {
+    // Convertir ResultadoLiquidacionSIGA[] a Liquidacion[]
+    const liquidaciones: Liquidacion[] = resultado.liquidaciones.map(l => ({
+      id: l.id || `LIQ_${l.numeroGuia}`,
+      numeroGuia: l.numeroGuia,
+      manifiestoId: mawb || 'SIN_MAWB',
+      categoriaAduanera: l.categoriaAduanera,
+      categoriaDescripcion: l.categoriaDescripcion || '',
+      valorFOB: l.valorFOB,
+      valorFlete: l.valorFlete,
+      valorSeguro: l.valorSeguro,
+      valorCIF: l.valorCIF,
+      monedaOriginal: 'USD',
+      tipoCambio: 1,
+      hsCode: l.hsCode,
+      descripcionArancelaria: l.descripcionArancelaria,
+      percentDAI: l.percentDAI,
+      percentISC: l.percentISC,
+      percentITBMS: l.percentITBMS,
+      montoDAI: l.montoDAI,
+      baseISC: l.valorCIF + l.montoDAI,
+      montoISC: l.montoISC,
+      baseITBMS: l.valorCIF + l.montoDAI + l.montoISC,
+      montoITBMS: l.montoITBMS,
+      tasaAduanera: l.tasaAduanera,
+      tasasAdicionales: 0,
+      totalTributos: l.boletaPago.montoActual - l.valorCIF,
+      totalAPagar: l.boletaPago.montoActual,
+      estado: l.estado as any || 'calculada',
+      tieneRestricciones: l.tieneRestricciones,
+      restricciones: l.restricciones,
+      observaciones: l.observaciones,
+      requiereRevisionManual: l.requiereRevisionManual,
+      calculadaPor: 'SISTEMA_AI',
+      fechaCalculo: new Date().toISOString(),
+      version: 1
+    }));
+
+    const datos: DatosExcelInteligente = {
       paquetes,
-      liquidaciones: resultado.liquidaciones,
-      clasificaciones: resultado.clasificaciones,
-      auditorias: resultado.auditoria.paquetesProblematicos,
-      metadatos: { mawb, fechaManifiesto: new Date(), pesoTotal: paquetes.reduce((s, p) => s + (p.weight || 0), 0), firmaDigital: firma.hash }
+      liquidaciones,
+      mawb: mawb || 'SIN_MAWB',
+      fechaProceso: new Date()
     };
     
-    await descargarExcelConsolidado(datos, `Liquidacion_${mawb || 'MAWB'}`);
+    await descargarExcelInteligente(datos);
     return { firma, archivoDescargado: true };
   }
   
