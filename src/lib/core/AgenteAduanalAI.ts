@@ -38,9 +38,10 @@ export class AgenteAduanalAI {
   ): Promise<ResultadoProcesamientoCompleto> {
     devLog(`[Agente] Procesando ${paquetes.length} paquetes`);
     
-    // 1. Clasificación HTS con NLP
-    const { clasificaciones, requierenRevision } = MotorClasificacionHTS.procesarLote(
-      paquetes, opciones.facturasLineItems
+    // 1. Clasificación HTS con NLP + Lovable AI (cuando sea necesario)
+    const { clasificaciones, requierenRevision } = await MotorClasificacionHTS.procesarLoteConAI(
+      paquetes,
+      opciones.facturasLineItems
     );
     
     // 1.5. Enriquecer paquetes con código HTS para análisis de subvaluación

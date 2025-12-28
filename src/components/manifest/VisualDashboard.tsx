@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import { ProcessingConfig } from '@/types/manifest';
 import { ExtendedProcessingResult } from '@/lib/excelProcessor';
-import { ExportFile, generateExportFiles, downloadExportFile, downloadAllFilesAsZip, ExportConfig, MAWBExportInfo } from '@/lib/exportService';
+import { ExportFile, generateExportFiles, downloadExportFile, downloadAllFilesAsZip, downloadConsolidatedExcel, ExportConfig, MAWBExportInfo } from '@/lib/exportService';
 import { COMPANY_INFO, REGULATORY_INFO, CONTACT_EMERGENCY, PHARMA_REQUIREMENTS } from '@/lib/companyConfig';
 import { PROVINCIAS_PANAMA, ICONOS_REGION, COLORES_PROVINCIA, getRegiones } from '@/lib/panamaGeography';
 import { Button } from '@/components/ui/button';
@@ -266,6 +266,10 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
     await downloadAllFilesAsZip(exportFiles, result, mawbExportInfo);
   };
 
+  const handleDownloadConsolidated = () => {
+    downloadConsolidatedExcel(exportFiles, result, mawbExportInfo);
+  };
+
   const handleDownloadFile = (file: ExportFile) => {
     downloadExportFile(file, consigneeMap, mawbExportInfo);
   };
@@ -337,7 +341,7 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
       </div>
 
       <Tabs defaultValue="overview" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-9">
+        <TabsList className="grid w-full grid-cols-10">
           <TabsTrigger value="overview">Resumen</TabsTrigger>
           <TabsTrigger value="liquidacion" className="gap-1">
             <Calculator className="w-4 h-4" />
@@ -385,6 +389,12 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
             Archivos
             <Badge variant="secondary" className="ml-2">
               {mainFiles.length}
+            </Badge>
+          </TabsTrigger>
+          <TabsTrigger value="agente">
+            IA
+            <Badge variant="secondary" className="ml-2">
+              1
             </Badge>
           </TabsTrigger>
         </TabsList>
@@ -997,15 +1007,21 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
           </div>
 
           <div className="card-elevated">
-            <div className="p-4 border-b border-border flex items-center justify-between">
+            <div className="p-4 border-b border-border flex items-center justify-between gap-3">
               <div>
                 <h3 className="font-semibold text-foreground">Archivos Generados</h3>
                 <p className="text-sm text-muted-foreground">{mainFiles.length} archivos con nomenclatura MAWB</p>
               </div>
-              <Button onClick={handleDownloadAll} className="gap-2">
-                <Download className="w-4 h-4" />
-                Descargar Todo ({mawbExportInfo.formatted.replace('MAWB ', '')}.zip)
-              </Button>
+              <div className="flex flex-wrap items-center gap-2 justify-end">
+                <Button variant="outline" onClick={handleDownloadConsolidated} className="gap-2">
+                  <FileDown className="w-4 h-4" />
+                  Excel Consolidado (.xlsx)
+                </Button>
+                <Button onClick={handleDownloadAll} className="gap-2">
+                  <Download className="w-4 h-4" />
+                  Descargar Todo ({mawbExportInfo.formatted.replace('MAWB ', '')}.zip)
+                </Button>
+              </div>
             </div>
 
             <div className="divide-y divide-border">
