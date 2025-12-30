@@ -96,6 +96,16 @@ interface DatosFacturaIA {
   };
 }
 
+// Resumen de procesamiento multi-página
+interface ResumenProcesamiento {
+  totalPaginas: number;
+  facturasExtraidas: number;
+  facturasCoincidentes: number;
+  facturasNoRequeridas: number;
+  awbsEncontrados: string[];
+  facturasOmitidas: { transportationReference: string; page: number }[];
+}
+
 interface FacturaAsociada {
   id: string;
   nombreArchivo: string;
@@ -112,6 +122,9 @@ interface FacturaAsociada {
   transportationReferences?: string[];
   hsCodesPanama?: { codigo: string; descripcion: string }[];
   desglose?: { totalItemValue: number; totalFreight: number; totalInvoiceValue: number };
+  // Procesamiento multi-página
+  resumenProcesamiento?: ResumenProcesamiento;
+  amazonInvoices?: AmazonInvoice[];
 }
 
 interface ValidacionResultado {
@@ -143,16 +156,16 @@ export function CargaFacturas({
   const awbsRequeridosSet = new Set(
     liquidacionesPendientes
       .filter(l => l.categoriaAduanera === 'D' || l.valorCIF > 100)
-      .map(l => l.numeroGuia.toUpperCase().trim())
+      .map(l => l.numeroGuia.toUpperCase().trim().replace(/[-\s]/g, ''))
   );
   const awbsRequeridos = Array.from(awbsRequeridosSet);
 
-  // Extraer texto completo del PDF
-  const extraerTextoPDF = async (file: File): Promise<string> => {
+  // Extraer texto de cada página del PDF por separado
+  const extraerTextosPorPagina = async (file: File): Promise<string[]> => {
     try {
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      let textoCompleto = '';
+      const textosPorPagina: string[] = [];
       
       for (let i = 1; i <= pdf.numPages; i++) {
         const pagina = await pdf.getPage(i);
@@ -160,36 +173,46 @@ export function CargaFacturas({
         const textoPagina = contenido.items
           .map((item: any) => item.str)
           .join(' ');
-        textoCompleto += textoPagina + '\n';
+        textosPorPagina.push(textoPagina);
       }
       
-      return textoCompleto;
+      return textosPorPagina;
     } catch (error) {
       console.error('Error al extraer texto del PDF:', error);
-      return '';
+      return [];
     }
   };
 
-  // Extraer datos usando IA
-  const extraerDatosConIA = async (textoFactura: string, nombreArchivo: string): Promise<DatosFacturaIA | null> => {
+  // Extraer datos usando IA con procesamiento multi-página
+  const extraerDatosConIA = async (
+    textosPorPagina: string[], 
+    nombreArchivo: string
+  ): Promise<{ datos: DatosFacturaIA | null; resumen: ResumenProcesamiento | null }> => {
     try {
       const { data, error } = await supabase.functions.invoke('extract-invoice-data', {
-        body: { textoFactura, nombreArchivo }
+        body: { 
+          textosPorPagina, 
+          nombreArchivo,
+          awbsRequeridos // Enviar lista de AWBs requeridos para filtrar
+        }
       });
 
       if (error) {
         console.error('Error al invocar función:', error);
-        return null;
+        return { datos: null, resumen: null };
       }
 
       if (data?.success && data?.data) {
-        return data.data as DatosFacturaIA;
+        return { 
+          datos: data.data as DatosFacturaIA,
+          resumen: data.resumen as ResumenProcesamiento || null
+        };
       }
 
-      return null;
+      return { datos: null, resumen: null };
     } catch (error) {
       console.error('Error en extracción IA:', error);
-      return null;
+      return { datos: null, resumen: null };
     }
   };
 
@@ -317,7 +340,7 @@ export function CargaFacturas({
     return resultado;
   }, [awbsRequeridos, onFacturasAsociadas]);
 
-  // Manejar carga de archivos
+  // Manejar carga de archivos con procesamiento multi-página
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const files = event.target.files;
     if (!files || files.length === 0) return;
@@ -338,10 +361,10 @@ export function CargaFacturas({
           continue;
         }
         
-        // Extraer texto del PDF
-        const textoPDF = await extraerTextoPDF(file);
+        // Extraer texto de cada página por separado
+        const textosPorPagina = await extraerTextosPorPagina(file);
         
-        if (!textoPDF || textoPDF.trim().length === 0) {
+        if (!textosPorPagina.length || !textosPorPagina.some(t => t.trim().length > 20)) {
           toast.warning(`${file.name}: No se pudo extraer texto del PDF`);
           continue;
         }
@@ -365,21 +388,23 @@ export function CargaFacturas({
         nuevasFacturas.push(facturaInicial);
         setFacturas(prev => [...prev, facturaInicial]);
 
-        // Intentar extracción con IA
-        let datosExtraidos = await extraerDatosConIA(textoPDF, file.name);
-        let extraidoConIA = !!datosExtraidos;
+        // Intentar extracción con IA (multi-página)
+        const { datos: datosExtraidos, resumen } = await extraerDatosConIA(textosPorPagina, file.name);
+        const extraidoConIA = !!datosExtraidos;
         
-        // Fallback a patrones si IA falla
-        if (!datosExtraidos) {
-          datosExtraidos = extraerDatosConPatrones(textoPDF);
+        // Si IA falla, fallback a patrones con texto concatenado
+        let datosFinal = datosExtraidos;
+        if (!datosFinal) {
+          const textoCompleto = textosPorPagina.join('\n');
+          datosFinal = extraerDatosConPatrones(textoCompleto);
         }
         
         // Combinar AWBs del nombre + transportationReferences de Amazon
         const awbsDelNombre = extraerAWBsDeNombre(file.name);
-        const transportRefs = datosExtraidos?.transportationReferences || [];
+        const transportRefs = datosFinal?.transportationReferences || [];
         const todosAWBs = [...new Set([
           ...awbsDelNombre, 
-          ...(datosExtraidos?.awbs || []),
+          ...(datosFinal?.awbs || []),
           ...transportRefs.map(r => r.replace(/[-\s]/g, '').toUpperCase())
         ])];
 
@@ -388,12 +413,15 @@ export function CargaFacturas({
           ...facturaInicial,
           awbExtraidos: todosAWBs,
           estado: 'pendiente',
-          datosExtraidos,
+          datosExtraidos: datosFinal,
           extraidoConIA,
           // Campos específicos Amazon
           transportationReferences: transportRefs,
-          hsCodesPanama: datosExtraidos?.hsCodesPanama || [],
-          desglose: datosExtraidos?.desglose
+          hsCodesPanama: datosFinal?.hsCodesPanama || [],
+          desglose: datosFinal?.desglose,
+          // Nuevo: procesamiento multi-página
+          resumenProcesamiento: resumen || undefined,
+          amazonInvoices: datosFinal?.amazonInvoices || []
         };
         
         // Actualizar en el array
@@ -403,6 +431,17 @@ export function CargaFacturas({
         }
         
         setFacturas(prev => prev.map(f => f.id === facturaId ? facturaActualizada : f));
+        
+        // Mostrar resumen de procesamiento multi-página
+        if (resumen) {
+          const msg = `${file.name}: ${resumen.facturasCoincidentes}/${resumen.facturasExtraidas} facturas relevantes (${resumen.totalPaginas} páginas)`;
+          if (resumen.facturasCoincidentes > 0) {
+            toast.success(msg);
+          } else if (resumen.facturasExtraidas > 0) {
+            toast.info(msg + ' - Ninguna coincide con AWBs pendientes');
+          }
+        }
+        
         setProgreso(Math.round(((i + 1) / totalArchivos) * 100));
       }
       
