@@ -9,6 +9,7 @@ import { ProcessingProgress } from '@/components/manifest/ProcessingProgress';
 import { VisualDashboard } from '@/components/manifest/VisualDashboard';
 import { ConfigPanel } from '@/components/manifest/ConfigPanel';
 import { ValidacionGuiasAlert, InfoGuiasVsMAWB } from '@/components/manifest/ValidacionGuiasAlert';
+import { SelectorModoTransporte, useTransportMode } from '@/components/transporte/SelectorModoTransporte';
 import { 
   parseExcelFile, 
   mapDataToManifest, 
@@ -41,6 +42,9 @@ export default function Index() {
   const [isLoading, setIsLoading] = useState(false);
   const [mawbInfo, setMawbInfo] = useState<MAWBInfo | null>(null);
   const [fileLoaded, setFileLoaded] = useState(false);
+  
+  // Hook para modo de transporte
+  const { modo: modoTransporte, zona: zonaAduanera, setModo, setZona } = useTransportMode();
 
   const handleFileSelect = useCallback(async (file: File) => {
     setError(null);
@@ -220,7 +224,7 @@ export default function Index() {
         {/* Main Content */}
         <div className="space-y-6">
           {step === 'upload' && (
-            <div className="max-w-2xl mx-auto">
+            <div className="max-w-2xl mx-auto space-y-6">
               <div className="text-center mb-8">
                 <h2 className="text-2xl font-bold text-foreground mb-2">
                   Cargar Manifiesto de Carga
@@ -229,6 +233,17 @@ export default function Index() {
                   Sube tu archivo Excel para comenzar el procesamiento
                 </p>
               </div>
+              
+              {/* Selector de Modo de Transporte */}
+              <div className="p-4 bg-card rounded-xl border border-border shadow-sm">
+                <SelectorModoTransporte
+                  modoSeleccionado={modoTransporte}
+                  zonaSeleccionada={zonaAduanera}
+                  onModoChange={setModo}
+                  onZonaChange={setZona}
+                />
+              </div>
+              
               <FileUpload 
                 onFileSelect={handleFileSelect}
                 onMawbChange={setMawbInfo}
