@@ -1,10 +1,10 @@
 // ============================================
 // GESTOR DE ALERTAS DE MORA
 // Lee fechas de registro y calcula alertas de vencimiento
-// B/. 56.66 → B/. 62.33 tras vencimiento
+// Basado en formato oficial ANA 2025
 // ============================================
 
-import { CONSTANTES_DECLARACION, EscenariosPago, calcularVencimientos } from '@/types/declaracionOficial';
+import { CONSTANTES_ANA, calcularVencimientosANA, formatearFechaANA } from '@/types/declaracionOficial';
 import { devLog, devWarn } from '@/lib/logger';
 
 export interface AlertaMora {
@@ -39,10 +39,10 @@ export interface ConfiguracionMora {
 }
 
 const CONFIG_MORA_DEFAULT: ConfiguracionMora = {
-  recargo1Porcentaje: CONSTANTES_DECLARACION.RECARGO_1_PERCENT,
-  recargo1DespuesDias: CONSTANTES_DECLARACION.RECARGO_1_DIAS,
-  recargo2Porcentaje: CONSTANTES_DECLARACION.RECARGO_2_PERCENT,
-  recargo2DespuesDias: CONSTANTES_DECLARACION.RECARGO_2_DIAS
+  recargo1Porcentaje: CONSTANTES_ANA.RECARGO_1_PERCENT,
+  recargo1DespuesDias: CONSTANTES_ANA.DIAS_PAGO_PUNTUAL,
+  recargo2Porcentaje: CONSTANTES_ANA.RECARGO_2_PERCENT,
+  recargo2DespuesDias: CONSTANTES_ANA.DIAS_RECARGO_10
 };
 
 /**
@@ -57,13 +57,9 @@ export function calcularAlertaMora(
   const ahora = new Date();
   const id = `mora_${declaracionNumero}_${Date.now()}`;
   
-  // Calcular fechas límite
-  const fechaNormal = new Date(fechaRegistro);
-  fechaNormal.setDate(fechaNormal.getDate() + config.recargo1DespuesDias);
-  
-  const fechaRecargo1Hasta = new Date(fechaNormal);
-  fechaRecargo1Hasta.setDate(fechaRecargo1Hasta.getDate() + (config.recargo2DespuesDias - config.recargo1DespuesDias));
-  
+  // Calcular fechas límite usando días hábiles
+  const fechaNormal = agregarDiasHabiles(fechaRegistro, config.recargo1DespuesDias);
+  const fechaRecargo1Hasta = agregarDiasHabiles(fechaRegistro, config.recargo2DespuesDias);
   const fechaRecargo2Desde = new Date(fechaRecargo1Hasta);
   fechaRecargo2Desde.setDate(fechaRecargo2Desde.getDate() + 1);
   
@@ -155,6 +151,24 @@ export function calcularAlertaMora(
 }
 
 /**
+ * Agrega días hábiles a una fecha (excluye sábados y domingos)
+ */
+function agregarDiasHabiles(fecha: Date, dias: number): Date {
+  const resultado = new Date(fecha);
+  let diasAgregados = 0;
+  
+  while (diasAgregados < dias) {
+    resultado.setDate(resultado.getDate() + 1);
+    const diaSemana = resultado.getDay();
+    if (diaSemana !== 0 && diaSemana !== 6) {
+      diasAgregados++;
+    }
+  }
+  
+  return resultado;
+}
+
+/**
  * Procesa múltiples declaraciones y genera alertas
  */
 export function procesarAlertasMora(
@@ -225,13 +239,7 @@ export function procesarAlertasMora(
  * Formatea fechas de vencimiento para mostrar al usuario
  */
 export function formatearVencimientos(alerta: AlertaMora): string {
-  const formatoFecha = (fecha: Date) => {
-    return fecha.toLocaleDateString('es-PA', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric'
-    });
-  };
+  const formatoFecha = (fecha: Date) => formatearFechaANA(fecha);
   
   return `
 📅 Fechas de Vencimiento para ${alerta.declaracionNumero}
@@ -253,18 +261,18 @@ function redondear(valor: number): number {
 }
 
 /**
- * Ejemplo específico: B/. 56.66 → B/. 62.33
+ * Ejemplo específico: B/. 41.83 → B/. 46.02 → B/. 50.19
  */
 export function ejemploMoraANA(): void {
-  const montoOriginal = 56.66;
+  const montoOriginal = 41.83;
   const fechaRegistro = new Date();
-  fechaRegistro.setDate(fechaRegistro.getDate() - 6); // Simular vencido hace 1 día
+  fechaRegistro.setDate(fechaRegistro.getDate() - 6);
   
-  const alerta = calcularAlertaMora('DE2025122712345-10', fechaRegistro, montoOriginal);
+  const alerta = calcularAlertaMora('DE2025122444677-9', fechaRegistro, montoOriginal);
   
   console.log(`
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Ejemplo de Cálculo de Mora (ANA)
+Ejemplo de Cálculo de Mora (ANA 2025)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Monto Original: B/. ${montoOriginal.toFixed(2)}
 Con Recargo 10%: B/. ${(montoOriginal * 1.10).toFixed(2)}

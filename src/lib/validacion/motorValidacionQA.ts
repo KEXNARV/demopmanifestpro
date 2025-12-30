@@ -1,9 +1,15 @@
 // ============================================
 // MOTOR DE VALIDACIÓN QA - AUDITORÍA ADUANERA
 // Dashboard de Alertas de Discrepancia ANA Panamá
+// Actualizado para tipos ANA 2025
 // ============================================
 
-import { DeclaracionOficial, DetalleMercancia, CONSTANTES_DECLARACION } from '@/types/declaracionOficial';
+import { 
+  DeclaracionOficial, 
+  ArticuloDeclaracion, 
+  CONSTANTES_ANA,
+  EscenariosPagoANA
+} from '@/types/declaracionOficial';
 
 // ============================================
 // TIPOS DE ALERTAS
@@ -54,31 +60,33 @@ export interface ResumenValidacion {
 /**
  * Valida que el DAI se aplique correctamente según la fracción arancelaria
  */
-function validarCruceAranceles(item: DetalleMercancia): AlertaDiscrepancia | null {
-  const { fraccion_arancelaria, valor_cif, impuestos } = item;
+function validarCruceAranceles(item: ArticuloDeclaracion): AlertaDiscrepancia | null {
+  const { fraccion_arancelaria, valor_cif, impuestos, numero_articulo } = item;
   
   // Mapeo de fracciones conocidas a tasas DAI
   const tasasConocidas: Record<string, number> = {
-    '950300990090': 10.00,  // Juguetes
-    '8471300000': 0.00,     // Laptops - exentos
-    '6109100000': 15.00,    // Camisetas
-    '8517120000': 0.00,     // Celulares - exentos
-    // Agregar más según catálogo
+    '950300990090': 10.00,
+    '847130000000': 0.00,
+    '610910000000': 15.00,
+    '851712000000': 0.00,
+    '330499900000': 6.50,
+    '420239000000': 15.00,
+    '960330100000': 3.00,
   };
   
   const tasaEsperada = tasasConocidas[fraccion_arancelaria];
   
   if (tasaEsperada !== undefined) {
-    if (Math.abs(impuestos.dai_tasa - tasaEsperada) > 0.01) {
+    if (Math.abs(impuestos.dai_tarifa_percent - tasaEsperada) > 0.01) {
       return {
-        id: `alerta_dai_${item.item}_${Date.now()}`,
+        id: `alerta_dai_${numero_articulo}_${Date.now()}`,
         nivel: 'rojo',
         categoria: 'calculo',
         titulo: 'Tasa DAI Incorrecta',
-        descripcion: `La fracción ${fraccion_arancelaria} debe aplicar ${tasaEsperada}% DAI, no ${impuestos.dai_tasa}%`,
+        descripcion: `La fracción ${fraccion_arancelaria} debe aplicar ${tasaEsperada}% DAI, no ${impuestos.dai_tarifa_percent}%`,
         valorEsperado: tasaEsperada,
-        valorActual: impuestos.dai_tasa,
-        item: item.item,
+        valorActual: impuestos.dai_tarifa_percent,
+        item: numero_articulo,
         accionRequerida: 'Corregir tasa DAI antes de firma',
         fechaDeteccion: new Date().toISOString()
       };
@@ -89,30 +97,30 @@ function validarCruceAranceles(item: DetalleMercancia): AlertaDiscrepancia | nul
 }
 
 /**
- * Verifica la aritmética de impuestos: ITBMS = 7% de (CIF + DAI)
+ * Verifica la aritmética de impuestos: ITBM = 7% de (CIF + DAI)
  */
-function validarAritmeticaITBMS(item: DetalleMercancia): AlertaDiscrepancia | null {
-  const { valor_cif, impuestos } = item;
-  const TOLERANCIA = 0.01; // B/. 0.01
+function validarAritmeticaITBM(item: ArticuloDeclaracion): AlertaDiscrepancia | null {
+  const { valor_cif, impuestos, numero_articulo } = item;
+  const TOLERANCIA = 0.02; // B/. 0.02
   
-  // Base ITBMS = CIF + DAI (+ ISC si aplica)
-  const baseITBMS = valor_cif + impuestos.dai_monto + (impuestos.isc_monto || 0);
-  const itbmsEsperado = Math.round(baseITBMS * (impuestos.itbms_tasa / 100) * 100) / 100;
+  // Base ITBM = CIF + DAI (+ ISC si aplica)
+  const baseITBM = valor_cif + impuestos.dai_a_pagar + impuestos.isc_a_pagar;
+  const itbmEsperado = Math.round(baseITBM * (impuestos.itbm_tarifa_percent / 100) * 100) / 100;
   
-  const diferencia = Math.abs(itbmsEsperado - impuestos.itbms_monto);
+  const diferencia = Math.abs(itbmEsperado - impuestos.itbm_a_pagar);
   
   if (diferencia > TOLERANCIA) {
     return {
-      id: `alerta_itbms_${item.item}_${Date.now()}`,
+      id: `alerta_itbm_${numero_articulo}_${Date.now()}`,
       nivel: 'rojo',
       categoria: 'calculo',
-      titulo: 'Error Aritmético ITBMS',
-      descripcion: `ITBMS calculado: B/.${itbmsEsperado.toFixed(2)} | Sistema: B/.${impuestos.itbms_monto.toFixed(2)} | Diferencia: B/.${diferencia.toFixed(2)}`,
-      valorEsperado: itbmsEsperado,
-      valorActual: impuestos.itbms_monto,
+      titulo: 'Error Aritmético ITBM',
+      descripcion: `ITBM calculado: B/.${itbmEsperado.toFixed(2)} | Sistema: B/.${impuestos.itbm_a_pagar.toFixed(2)} | Diferencia: B/.${diferencia.toFixed(2)}`,
+      valorEsperado: itbmEsperado,
+      valorActual: impuestos.itbm_a_pagar,
       diferencia,
-      item: item.item,
-      accionRequerida: 'Recalcular ITBMS. Base = CIF + DAI + ISC',
+      item: numero_articulo,
+      accionRequerida: 'Recalcular ITBM. Base = CIF + DAI + ISC',
       fechaDeteccion: new Date().toISOString()
     };
   }
@@ -121,46 +129,22 @@ function validarAritmeticaITBMS(item: DetalleMercancia): AlertaDiscrepancia | nu
 }
 
 /**
- * Valida que la Tasa SIGA ($3.00) esté incluida
+ * Valida que la Tasa de Sistema ($3.00) esté incluida
  */
-function validarTasaSIGA(declaracion: DeclaracionOficial): AlertaDiscrepancia | null {
-  const { boleta_pago_resumen } = declaracion;
-  const TASA_SIGA_ESPERADA = CONSTANTES_DECLARACION.TASA_SIGA;
+function validarTasaSistema(declaracion: DeclaracionOficial): AlertaDiscrepancia | null {
+  const { totales } = declaracion;
+  const TASA_ESPERADA = CONSTANTES_ANA.TASA_USO_SISTEMA;
   
-  if (!boleta_pago_resumen.tasa_siga || boleta_pago_resumen.tasa_siga !== TASA_SIGA_ESPERADA) {
+  if (!totales.tasa_uso_sistema || totales.tasa_uso_sistema !== TASA_ESPERADA) {
     return {
-      id: `alerta_siga_${Date.now()}`,
+      id: `alerta_tasa_sistema_${Date.now()}`,
       nivel: 'naranja',
       categoria: 'calculo',
-      titulo: 'Tasa SIGA Faltante o Incorrecta',
-      descripcion: `La tasa de Uso del Sistema debe ser B/.${TASA_SIGA_ESPERADA.toFixed(2)}`,
-      valorEsperado: TASA_SIGA_ESPERADA,
-      valorActual: boleta_pago_resumen.tasa_siga || 0,
-      accionRequerida: 'Agregar tasa SIGA de B/. 3.00',
-      fechaDeteccion: new Date().toISOString()
-    };
-  }
-  
-  return null;
-}
-
-/**
- * Valida que la Tasa de Formulario ($5.00) esté incluida
- */
-function validarTasaFormulario(declaracion: DeclaracionOficial): AlertaDiscrepancia | null {
-  const { boleta_pago_resumen } = declaracion;
-  const TASA_FORMULARIO_ESPERADA = CONSTANTES_DECLARACION.TASA_FORMULARIO;
-  
-  if (!boleta_pago_resumen.tasa_formulario || boleta_pago_resumen.tasa_formulario !== TASA_FORMULARIO_ESPERADA) {
-    return {
-      id: `alerta_formulario_${Date.now()}`,
-      nivel: 'naranja',
-      categoria: 'calculo',
-      titulo: 'Tasa de Formulario Faltante',
-      descripcion: `La tasa de formulario debe ser B/.${TASA_FORMULARIO_ESPERADA.toFixed(2)}`,
-      valorEsperado: TASA_FORMULARIO_ESPERADA,
-      valorActual: boleta_pago_resumen.tasa_formulario || 0,
-      accionRequerida: 'Agregar tasa de formulario de B/. 5.00',
+      titulo: 'Tasa de Sistema Faltante o Incorrecta',
+      descripcion: `La tasa de Uso del Sistema debe ser B/.${TASA_ESPERADA.toFixed(2)}`,
+      valorEsperado: TASA_ESPERADA,
+      valorActual: totales.tasa_uso_sistema || 0,
+      accionRequerida: 'Agregar tasa de sistema de B/. 3.00',
       fechaDeteccion: new Date().toISOString()
     };
   }
@@ -182,7 +166,7 @@ function validarIntegridadPesos(
 ): AlertaDiscrepancia | null {
   const TOLERANCIA_PESO = 0.05; // 5%
   
-  const items = declaracion.detalle_mercancia;
+  const items = declaracion.articulos;
   const sumaPesoNeto = items.reduce((sum, item) => sum + (item.peso_neto_kgs || item.peso_bruto_kgs), 0);
   
   const diferenciaPorcentaje = Math.abs(sumaPesoNeto - pesoBrutoDeclarado) / pesoBrutoDeclarado;
@@ -219,18 +203,23 @@ export interface EstadoVencimiento {
 }
 
 /**
- * Calcula el estado actual de vencimiento basado en fechas de boleta
+ * Calcula el estado actual de vencimiento basado en fechas
  */
 export function calcularEstadoVencimiento(
-  vencimientos: DeclaracionOficial['boleta_pago_resumen']['vencimiento_escenarios'],
+  vencimientos: EscenariosPagoANA,
   montoBase: number
 ): EstadoVencimiento {
   const hoy = new Date();
   hoy.setHours(0, 0, 0, 0);
   
-  const fechaNormal = new Date(vencimientos.normal.hasta!);
-  const fechaRecargo1 = new Date(vencimientos.recargo_1.hasta!);
-  const fechaRecargo2 = new Date(vencimientos.recargo_2.desde!);
+  // Parsear fechas en formato DD/MM/YYYY
+  const parsearFecha = (fechaStr: string): Date => {
+    const partes = fechaStr.split('/');
+    return new Date(parseInt(partes[2]), parseInt(partes[1]) - 1, parseInt(partes[0]));
+  };
+  
+  const fechaNormal = parsearFecha(vencimientos.normal.hasta_fecha);
+  const fechaRecargo10 = parsearFecha(vencimientos.recargo_10_percent.hasta_fecha);
   
   // Calcular días hasta vencimiento normal
   const diasHastaNormal = Math.ceil((fechaNormal.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24));
@@ -239,28 +228,28 @@ export function calcularEstadoVencimiento(
     return {
       estado: diasHastaNormal <= 2 ? 'proximo' : 'normal',
       montoActual: montoBase,
-      proximaFecha: vencimientos.normal.hasta!,
+      proximaFecha: vencimientos.normal.hasta_fecha,
       diasRestantes: diasHastaNormal
     };
   }
   
-  if (hoy <= fechaRecargo1) {
-    const recargo = montoBase * (CONSTANTES_DECLARACION.RECARGO_1_PERCENT / 100);
+  if (hoy <= fechaRecargo10) {
+    const recargo = montoBase * (CONSTANTES_ANA.RECARGO_1_PERCENT / 100);
     return {
       estado: 'vencido_1',
       montoActual: montoBase + recargo,
-      proximaFecha: vencimientos.recargo_1.hasta!,
-      diasRestantes: Math.ceil((fechaRecargo1.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24)),
+      proximaFecha: vencimientos.recargo_10_percent.hasta_fecha,
+      diasRestantes: Math.ceil((fechaRecargo10.getTime() - hoy.getTime()) / (1000 * 60 * 60 * 24)),
       recargo
     };
   }
   
-  // Después de recargo 1
-  const recargo = montoBase * (CONSTANTES_DECLARACION.RECARGO_2_PERCENT / 100);
+  // Después de recargo 10%
+  const recargo = montoBase * (CONSTANTES_ANA.RECARGO_2_PERCENT / 100);
   return {
     estado: 'vencido_2',
     montoActual: montoBase + recargo,
-    proximaFecha: vencimientos.recargo_2.desde!,
+    proximaFecha: vencimientos.recargo_20_percent.desde_fecha,
     diasRestantes: 0,
     recargo
   };
@@ -270,11 +259,23 @@ export function calcularEstadoVencimiento(
  * Genera alerta de vencimiento según estado
  */
 function validarVencimientos(declaracion: DeclaracionOficial): AlertaDiscrepancia | null {
-  const { boleta_pago_resumen } = declaracion;
-  const estado = calcularEstadoVencimiento(
-    boleta_pago_resumen.vencimiento_escenarios,
-    boleta_pago_resumen.total_liquidado
-  );
+  // Crear escenarios de pago desde totales
+  const vencimientos: EscenariosPagoANA = {
+    normal: {
+      monto: declaracion.totales.total_a_pagar,
+      hasta_fecha: calcularFechaVencimiento(5)
+    },
+    recargo_10_percent: {
+      monto: declaracion.totales.total_a_pagar * 1.10,
+      hasta_fecha: calcularFechaVencimiento(10)
+    },
+    recargo_20_percent: {
+      monto: declaracion.totales.total_a_pagar * 1.20,
+      desde_fecha: calcularFechaVencimiento(11)
+    }
+  };
+  
+  const estado = calcularEstadoVencimiento(vencimientos, declaracion.totales.total_a_pagar);
   
   if (estado.estado === 'proximo') {
     return {
@@ -297,7 +298,7 @@ function validarVencimientos(declaracion: DeclaracionOficial): AlertaDiscrepanci
       categoria: 'vencimiento',
       titulo: 'Recargo del 10% Aplicado',
       descripcion: `Monto actualizado: B/.${estado.montoActual.toFixed(2)} (recargo: B/.${estado.recargo?.toFixed(2)})`,
-      valorEsperado: boleta_pago_resumen.total_liquidado,
+      valorEsperado: declaracion.totales.total_a_pagar,
       valorActual: estado.montoActual,
       diferencia: estado.recargo,
       accionRequerida: `Pagar antes del ${estado.proximaFecha} para evitar recargo adicional`,
@@ -312,7 +313,7 @@ function validarVencimientos(declaracion: DeclaracionOficial): AlertaDiscrepanci
       categoria: 'vencimiento',
       titulo: 'Recargo del 20% Aplicado',
       descripcion: `Monto actualizado: B/.${estado.montoActual.toFixed(2)} (recargo máximo aplicado)`,
-      valorEsperado: boleta_pago_resumen.total_liquidado,
+      valorEsperado: declaracion.totales.total_a_pagar,
       valorActual: estado.montoActual,
       diferencia: estado.recargo,
       accionRequerida: 'Pago urgente requerido - Recargo máximo aplicado',
@@ -323,9 +324,26 @@ function validarVencimientos(declaracion: DeclaracionOficial): AlertaDiscrepanci
   return null;
 }
 
+function calcularFechaVencimiento(dias: number): string {
+  const fecha = new Date();
+  fecha.setDate(fecha.getDate() + dias);
+  const day = String(fecha.getDate()).padStart(2, '0');
+  const month = String(fecha.getMonth() + 1).padStart(2, '0');
+  const year = fecha.getFullYear();
+  return `${day}/${month}/${year}`;
+}
+
 // ============================================
 // VALIDACIÓN DE PERMISOS (RESTRICCIONES)
 // ============================================
+
+interface RestriccionArticulo {
+  autoridad: string;
+  tipo: string;
+  descripcion: string;
+  requiere_permiso: boolean;
+  capitulo_sa?: string;
+}
 
 /**
  * Valida permisos regulatorios por autoridad
@@ -333,23 +351,23 @@ function validarVencimientos(declaracion: DeclaracionOficial): AlertaDiscrepanci
 function validarPermisosRegulatorios(declaracion: DeclaracionOficial): AlertaDiscrepancia[] {
   const alertas: AlertaDiscrepancia[] = [];
   
-  for (const item of declaracion.detalle_mercancia) {
-    if (item.restricciones && item.restricciones.length > 0) {
-      for (const restriccion of item.restricciones) {
-        if (restriccion.requiere_permiso) {
-          alertas.push({
-            id: `alerta_permiso_${item.item}_${restriccion.autoridad}_${Date.now()}`,
-            nivel: 'rojo',
-            categoria: 'permiso',
-            titulo: `Permiso ${restriccion.autoridad} Requerido`,
-            descripcion: `${restriccion.descripcion} - Capítulo SA: ${restriccion.capitulo_sa || 'N/A'}`,
-            item: item.item,
-            autoridad: restriccion.autoridad,
-            accionRequerida: `Obtener autorización de ${restriccion.autoridad} antes de despacho`,
-            fechaDeteccion: new Date().toISOString()
-          });
-        }
-      }
+  for (const item of declaracion.articulos) {
+    // Detectar restricciones basadas en capítulo SA
+    const capitulo = item.fraccion_arancelaria.substring(0, 2);
+    const autoridad = CONSTANTES_ANA.AUTORIDADES_POR_CAPITULO[capitulo as keyof typeof CONSTANTES_ANA.AUTORIDADES_POR_CAPITULO];
+    
+    if (autoridad) {
+      alertas.push({
+        id: `alerta_permiso_${item.numero_articulo}_${autoridad.autoridad}_${Date.now()}`,
+        nivel: 'rojo',
+        categoria: 'permiso',
+        titulo: `Permiso ${autoridad.autoridad} Requerido`,
+        descripcion: `${autoridad.descripcion} - Capítulo SA: ${capitulo}`,
+        item: item.numero_articulo,
+        autoridad: autoridad.autoridad,
+        accionRequerida: `Obtener autorización de ${autoridad.autoridad} antes de despacho`,
+        fechaDeteccion: new Date().toISOString()
+      });
     }
   }
   
@@ -370,20 +388,17 @@ export function validarDeclaracionCompleta(
   const alertas: AlertaDiscrepancia[] = [];
   
   // 1. Validar cálculos por cada ítem
-  for (const item of declaracion.detalle_mercancia) {
+  for (const item of declaracion.articulos) {
     const alertaDAI = validarCruceAranceles(item);
     if (alertaDAI) alertas.push(alertaDAI);
     
-    const alertaITBMS = validarAritmeticaITBMS(item);
-    if (alertaITBMS) alertas.push(alertaITBMS);
+    const alertaITBM = validarAritmeticaITBM(item);
+    if (alertaITBM) alertas.push(alertaITBM);
   }
   
-  // 2. Validar tasas fijas
-  const alertaSIGA = validarTasaSIGA(declaracion);
-  if (alertaSIGA) alertas.push(alertaSIGA);
-  
-  const alertaFormulario = validarTasaFormulario(declaracion);
-  if (alertaFormulario) alertas.push(alertaFormulario);
+  // 2. Validar tasa de sistema
+  const alertaTasa = validarTasaSistema(declaracion);
+  if (alertaTasa) alertas.push(alertaTasa);
   
   // 3. Validar integridad de pesos (si se proporciona peso bruto)
   if (pesoBrutoManifiesto) {
@@ -407,12 +422,6 @@ export function validarDeclaracionCompleta(
   const totalPuntos = alertasRojas * 10 + alertasNaranjas * 5 + alertasAmarillas * 2;
   const porcentajeCumplimiento = Math.max(0, 100 - totalPuntos);
   
-  // Calcular próximo vencimiento
-  const estadoVenc = calcularEstadoVencimiento(
-    declaracion.boleta_pago_resumen.vencimiento_escenarios,
-    declaracion.boleta_pago_resumen.total_liquidado
-  );
-  
   return {
     esValido: alertasRojas === 0,
     listoParaFirma: alertasRojas === 0 && alertasNaranjas === 0,
@@ -424,9 +433,9 @@ export function validarDeclaracionCompleta(
       alertasAmarillas,
       porcentajeCumplimiento,
       proximoVencimiento: {
-        fecha: estadoVenc.proximaFecha,
-        monto: estadoVenc.montoActual,
-        diasRestantes: estadoVenc.diasRestantes
+        fecha: calcularFechaVencimiento(5),
+        monto: declaracion.totales.total_a_pagar,
+        diasRestantes: 5
       }
     }
   };
