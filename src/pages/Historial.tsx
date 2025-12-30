@@ -84,8 +84,8 @@ export default function Historial() {
     cargarDatos();
   }, []);
 
-  const handleEliminar = (id: string) => {
-    const exito = eliminarManifiesto(id);
+  const handleEliminar = async (id: string) => {
+    const exito = await eliminarManifiesto(id);
     if (exito) {
       toast.success('Manifiesto eliminado');
       cargarDatos();
@@ -94,8 +94,8 @@ export default function Historial() {
     }
   };
 
-  const handleCambiarEstado = (id: string, estado: ManifiestoGuardado['estado']) => {
-    const exito = actualizarEstadoManifiesto(id, estado);
+  const handleCambiarEstado = async (id: string, estado: ManifiestoGuardado['estado']) => {
+    const exito = await actualizarEstadoManifiesto(id, estado);
     if (exito) {
       toast.success(`Estado actualizado a "${estado}"`);
       cargarDatos();
