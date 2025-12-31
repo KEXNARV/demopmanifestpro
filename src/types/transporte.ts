@@ -30,7 +30,11 @@ export type ZonaAduanera =
   | 'puerto_cristobal'             // Puerto Cristóbal
   | 'frontera_paso_canoas'         // Frontera Costa Rica
   | 'frontera_darien'              // Frontera Colombia
-  | 'zona_libre_colon';            // Zona Libre de Colón (ZLC)
+  | 'zona_libre_colon'             // Zona Libre de Colón (ZLC)
+  | 'paso_canoas'                  // Alias: Paso Canoas (Chiriquí)
+  | 'guabito'                      // Frontera Guabito/Sixaola (Bocas del Toro)
+  | 'darien'                       // Alias: Darién
+  | 'panama_pacifico';             // Área Panamá Pacífico
 
 // ============================================
 // DOCUMENTOS MAESTROS POR MODO
@@ -325,6 +329,42 @@ export const ZONAS_ADUANERAS: Record<ZonaAduanera, InfoZonaAduanera> = {
     ciudad: 'Colón',
     provincia: 'Colón',
     codigoAduana: 'ZLCN',
+    modosPermitidos: ['aereo', 'maritimo', 'terrestre']
+  },
+  paso_canoas: {
+    id: 'paso_canoas',
+    nombre: 'Paso Canoas (Frontera CR)',
+    tipo: 'frontera',
+    ciudad: 'Paso Canoas',
+    provincia: 'Chiriquí',
+    codigoAduana: 'PCFR',
+    modosPermitidos: ['terrestre']
+  },
+  guabito: {
+    id: 'guabito',
+    nombre: 'Guabito / Sixaola (Frontera CR)',
+    tipo: 'frontera',
+    ciudad: 'Guabito',
+    provincia: 'Bocas del Toro',
+    codigoAduana: 'GBFR',
+    modosPermitidos: ['terrestre']
+  },
+  darien: {
+    id: 'darien',
+    nombre: 'Darién (Frontera CO)',
+    tipo: 'frontera',
+    ciudad: 'Yaviza',
+    provincia: 'Darién',
+    codigoAduana: 'DRFR',
+    modosPermitidos: ['terrestre']
+  },
+  panama_pacifico: {
+    id: 'panama_pacifico',
+    nombre: 'Área Económica Especial Panamá Pacífico',
+    tipo: 'zona_libre',
+    ciudad: 'Ciudad de Panamá',
+    provincia: 'Panamá Oeste',
+    codigoAduana: 'PPAC',
     modosPermitidos: ['aereo', 'maritimo', 'terrestre']
   }
 };
