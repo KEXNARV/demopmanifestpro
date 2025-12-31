@@ -402,7 +402,7 @@ export class AnalizadorMultiModal {
             valorDeclarado: 0,
             moneda: 'USD',
             estado: 'en_aduana',
-            zonaAduanera: 'puerto_colon',
+            zonaAduanera: 'puerto_cristobal',
             tipoBL: 'MBL',
             naviera: navieraNombre || '',
             nombreBuque: buqueValor || '',
@@ -492,8 +492,8 @@ export class AnalizadorMultiModal {
             ? String(fila[colFrontera.nombreOriginal] || '').trim().toLowerCase()
             : '';
           
-          const puntoFronterizo = fronteraValor.includes('darien') || fronteraValor.includes('colombia')
-            ? 'darien' as const
+          const puntoFronterizo = fronteraValor.includes('guabito') || fronteraValor.includes('sixaola') || fronteraValor.includes('bocas')
+            ? 'guabito' as const
             : 'paso_canoas' as const;
           
           cartaPorte = {
@@ -501,7 +501,7 @@ export class AnalizadorMultiModal {
             modo: 'terrestre',
             numero: valorCP,
             fechaEmision: new Date(),
-            origen: puntoFronterizo === 'darien' ? 'Colombia' : 'Costa Rica',
+            origen: 'Costa Rica',
             destino: 'Panamá',
             transportista: 'Transporte Terrestre',
             totalBultos: datos.length,
@@ -509,14 +509,14 @@ export class AnalizadorMultiModal {
             valorDeclarado: 0,
             moneda: 'USD',
             estado: 'en_aduana',
-            zonaAduanera: puntoFronterizo === 'darien' ? 'frontera_darien' : 'frontera_paso_canoas',
+            zonaAduanera: puntoFronterizo === 'guabito' ? 'frontera_guabito' : 'frontera_paso_canoas',
             tipoTransporte: 'camion',
             placaVehiculo: placaValor || '',
             nombreConductor: conductorValor || '',
             licenciaConductor: '',
             rutaTransporte: '',
             puntoFronterizo,
-            paisOrigen: puntoFronterizo === 'darien' ? 'CO' : 'CR',
+            paisOrigen: 'CR',
             sellosAduaneros: []
           };
           break;
