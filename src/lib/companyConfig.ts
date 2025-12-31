@@ -8,7 +8,7 @@ export const COMPANY_INFO = {
   tradeName: 'IPL Customs AI',
   tagline: 'Intelligent Customs Broker',
   ruc: '155678901-2-2025',
-  location: 'Aeropuerto Internacional de Tocumen',
+  location: 'Panamá, República de Panamá',
   country: 'República de Panamá',
   province: 'Panamá',
   district: 'Panamá',
