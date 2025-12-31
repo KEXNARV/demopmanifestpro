@@ -209,17 +209,18 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
       .sort((a, b) => b.value - a.value);
   }, [allRows, summary.totalRows]);
 
-  // City distribution data (top 10)
+  // City distribution data (all cities for drill-down)
   const cityData = useMemo(() => {
-    const byCity = new Map<string, { count: number; province: string; value: number }>();
+    const byCity = new Map<string, { count: number; province: string; value: number; weight: number }>();
     allRows.forEach(row => {
       const city = row.detectedCity || row.city || 'Sin Ciudad';
       const province = row.detectedProvince || row.province || '';
-      const current = byCity.get(city) || { count: 0, province, value: 0 };
+      const current = byCity.get(city) || { count: 0, province, value: 0, weight: 0 };
       byCity.set(city, {
         count: current.count + 1,
         province: province || current.province,
         value: current.value + row.valueUSD,
+        weight: current.weight + row.weight,
       });
     });
     return Array.from(byCity.entries())
@@ -228,11 +229,86 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
         value: data.count,
         province: data.province,
         totalValue: data.value,
+        totalWeight: data.weight,
         percentage: ((data.count / summary.totalRows) * 100).toFixed(1),
       }))
-      .sort((a, b) => b.value - a.value)
-      .slice(0, 10);
+      .sort((a, b) => b.value - a.value);
   }, [allRows, summary.totalRows]);
+
+  // District/Barrio distribution data
+  const districtData = useMemo(() => {
+    const byDistrict = new Map<string, { count: number; city: string; province: string; value: number; weight: number }>();
+    allRows.forEach(row => {
+      const district = row.district || 'Sin Barrio';
+      const city = row.detectedCity || row.city || '';
+      const province = row.detectedProvince || row.province || '';
+      const current = byDistrict.get(district) || { count: 0, city, province, value: 0, weight: 0 };
+      byDistrict.set(district, {
+        count: current.count + 1,
+        city: city || current.city,
+        province: province || current.province,
+        value: current.value + row.valueUSD,
+        weight: current.weight + row.weight,
+      });
+    });
+    return Array.from(byDistrict.entries())
+      .map(([name, data]) => ({
+        name,
+        value: data.count,
+        city: data.city,
+        province: data.province,
+        totalValue: data.value,
+        totalWeight: data.weight,
+        percentage: ((data.count / summary.totalRows) * 100).toFixed(1),
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [allRows, summary.totalRows]);
+
+  // Cities by province for hierarchical view
+  const citiesByProvince = useMemo(() => {
+    const grouped = new Map<string, typeof cityData>();
+    cityData.forEach(city => {
+      const province = city.province || 'Sin Provincia';
+      const existing = grouped.get(province) || [];
+      existing.push(city);
+      grouped.set(province, existing);
+    });
+    return grouped;
+  }, [cityData]);
+
+  // Districts by city for hierarchical view
+  const districtsByCity = useMemo(() => {
+    const grouped = new Map<string, typeof districtData>();
+    districtData.forEach(district => {
+      const city = district.city || 'Sin Ciudad';
+      const existing = grouped.get(city) || [];
+      existing.push(district);
+      grouped.set(city, existing);
+    });
+    return grouped;
+  }, [districtData]);
+
+  // State for expanded provinces and cities in drill-down
+  const [expandedProvinces, setExpandedProvinces] = useState<Set<string>>(new Set());
+  const [expandedCities, setExpandedCities] = useState<Set<string>>(new Set());
+
+  const toggleProvince = (province: string) => {
+    setExpandedProvinces(prev => {
+      const next = new Set(prev);
+      if (next.has(province)) next.delete(province);
+      else next.add(province);
+      return next;
+    });
+  };
+
+  const toggleCity = (city: string) => {
+    setExpandedCities(prev => {
+      const next = new Set(prev);
+      if (next.has(city)) next.delete(city);
+      else next.add(city);
+      return next;
+    });
+  };
 
   // Geographic detection stats
   const geoStats = useMemo(() => {
@@ -617,7 +693,7 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
           </div>
 
           {/* Detection Stats */}
-          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
             <div className="p-4 bg-green-50 rounded-lg border border-green-200 text-center">
               <p className="text-2xl font-bold text-green-700">{geoStats.highConfidence}</p>
               <p className="text-xs text-green-600">Alta Confianza (≥70%)</p>
@@ -638,46 +714,116 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
               <p className="text-2xl font-bold text-emerald-700">{provinceData.filter(p => p.name !== 'Sin Provincia').length}</p>
               <p className="text-xs text-emerald-600">Provincias</p>
             </div>
+            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 text-center">
+              <p className="text-2xl font-bold text-blue-700">{cityData.filter(c => c.name !== 'Sin Ciudad').length}</p>
+              <p className="text-xs text-blue-600">Ciudades</p>
+            </div>
+            <div className="p-4 bg-purple-50 rounded-lg border border-purple-200 text-center">
+              <p className="text-2xl font-bold text-purple-700">{districtData.filter(d => d.name !== 'Sin Barrio').length}</p>
+              <p className="text-xs text-purple-600">Barrios/Corregimientos</p>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Province Distribution */}
-            <div className="card-elevated p-6">
+            {/* Hierarchical Province → City → District Drill-down */}
+            <div className="card-elevated p-6 lg:col-span-2">
               <h4 className="font-semibold text-foreground mb-4 flex items-center gap-2">
                 <Building2 className="w-4 h-4" />
-                Distribución por Provincia
+                Distribución Jerárquica: Provincia → Ciudad → Barrio
+                <Badge variant="outline" className="ml-2 text-xs">Clic para expandir</Badge>
               </h4>
-              <div className="space-y-3 max-h-[400px] overflow-y-auto">
-                {provinceData.map((province, i) => (
-                  <div key={province.name} className="flex items-center gap-3">
-                    <span className="text-sm text-muted-foreground w-6">{i + 1}.</span>
-                    <div
-                      className="w-3 h-3 rounded-full"
-                      style={{ backgroundColor: province.color }}
-                    />
-                    <div className="flex-1">
-                      <div className="flex justify-between items-center mb-1">
-                        <span className="font-medium text-sm">{province.name}</span>
-                        <span className="text-sm text-muted-foreground">
-                          {province.value.toLocaleString()} ({province.percentage}%)
-                        </span>
-                      </div>
-                      <div className="h-2 bg-muted rounded-full overflow-hidden">
+              <div className="space-y-2 max-h-[500px] overflow-y-auto">
+                {provinceData.map((province, i) => {
+                  const isExpanded = expandedProvinces.has(province.name);
+                  const provinceCities = citiesByProvince.get(province.name) || [];
+                  
+                  return (
+                    <div key={province.name} className="border rounded-lg overflow-hidden">
+                      {/* Province Row */}
+                      <button
+                        onClick={() => toggleProvince(province.name)}
+                        className="w-full flex items-center gap-3 p-3 hover:bg-muted/50 transition-colors"
+                      >
+                        <span className="text-sm text-muted-foreground w-6">{i + 1}.</span>
                         <div
-                          className="h-full rounded-full transition-all"
-                          style={{
-                            width: `${province.percentage}%`,
-                            backgroundColor: province.color,
-                          }}
+                          className="w-3 h-3 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: province.color }}
                         />
-                      </div>
-                      <div className="flex justify-between mt-1 text-xs text-muted-foreground">
-                        <span>${province.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
-                        <span>{province.totalWeight.toLocaleString()} lb</span>
-                      </div>
+                        <div className="flex-1 text-left">
+                          <div className="flex justify-between items-center">
+                            <span className="font-medium text-sm">{province.name}</span>
+                            <div className="flex items-center gap-3">
+                              <span className="text-sm text-muted-foreground">
+                                {province.value.toLocaleString()} paq ({province.percentage}%)
+                              </span>
+                              {provinceCities.length > 0 && (
+                                isExpanded ? 
+                                  <ChevronUp className="w-4 h-4 text-muted-foreground" /> : 
+                                  <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex gap-4 mt-1 text-xs text-muted-foreground">
+                            <span>${province.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                            <span>{province.totalWeight.toLocaleString()} lb</span>
+                            <span className="text-blue-600">{provinceCities.filter(c => c.name !== 'Sin Ciudad').length} ciudades</span>
+                          </div>
+                        </div>
+                      </button>
+                      
+                      {/* Cities under Province */}
+                      {isExpanded && provinceCities.length > 0 && (
+                        <div className="border-t bg-muted/20">
+                          {provinceCities.map((city, ci) => {
+                            const isCityExpanded = expandedCities.has(city.name);
+                            const cityDistricts = districtsByCity.get(city.name) || [];
+                            
+                            return (
+                              <div key={city.name} className="border-b last:border-b-0">
+                                {/* City Row */}
+                                <button
+                                  onClick={() => toggleCity(city.name)}
+                                  className="w-full flex items-center gap-3 p-2 pl-12 hover:bg-muted/50 transition-colors"
+                                >
+                                  <MapPin className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                                  <div className="flex-1 text-left">
+                                    <div className="flex justify-between items-center">
+                                      <span className="text-sm">{city.name}</span>
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-xs text-muted-foreground">
+                                          {city.value} paq • ${city.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                        </span>
+                                        {cityDistricts.length > 0 && cityDistricts.some(d => d.name !== 'Sin Barrio') && (
+                                          isCityExpanded ? 
+                                            <ChevronUp className="w-3 h-3 text-muted-foreground" /> : 
+                                            <ChevronDown className="w-3 h-3 text-muted-foreground" />
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </button>
+                                
+                                {/* Districts under City */}
+                                {isCityExpanded && cityDistricts.filter(d => d.name !== 'Sin Barrio').length > 0 && (
+                                  <div className="bg-muted/30 py-1">
+                                    {cityDistricts.filter(d => d.name !== 'Sin Barrio').map((district, di) => (
+                                      <div key={district.name} className="flex items-center gap-2 py-1 pl-20 pr-4 text-xs">
+                                        <span className="w-2 h-2 rounded-full bg-purple-400 flex-shrink-0" />
+                                        <span className="flex-1 text-muted-foreground">{district.name}</span>
+                                        <span className="text-muted-foreground">{district.value} paq</span>
+                                        <span className="text-muted-foreground">${district.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </div>
 
@@ -719,25 +865,44 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
               </div>
             </div>
 
-            {/* Top 10 Cities */}
+            {/* Top 15 Cities with bar chart */}
             <div className="card-elevated p-6">
               <h4 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-                🏆 Top 10 Destinos
+                🏆 Top 15 Ciudades por Volumen
               </h4>
-              <div className="space-y-2">
-                {cityData.map((city, i) => (
+              <div className="h-[300px] mb-4">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={cityData.filter(c => c.name !== 'Sin Ciudad').slice(0, 15)} layout="vertical">
+                    <XAxis type="number" />
+                    <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 11 }} />
+                    <Tooltip 
+                      formatter={(value: number, name: string) => [
+                        name === 'value' ? `${value} paquetes` : `$${value.toLocaleString()}`,
+                        name === 'value' ? 'Paquetes' : 'Valor'
+                      ]}
+                      labelFormatter={(label) => {
+                        const city = cityData.find(c => c.name === label);
+                        return city ? `${label} (${city.province})` : label;
+                      }}
+                    />
+                    <Bar dataKey="value" fill="hsl(217, 91%, 60%)" radius={[0, 4, 4, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {cityData.filter(c => c.name !== 'Sin Ciudad').slice(0, 10).map((city, i) => (
                   <div key={city.name} className="flex items-center justify-between p-2 bg-muted/30 rounded">
                     <div className="flex items-center gap-2">
                       <span className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">
                         {i + 1}
                       </span>
                       <div>
-                        <p className="text-sm font-medium">{city.name}</p>
+                        <p className="text-sm font-medium truncate max-w-[100px]">{city.name}</p>
                         <p className="text-xs text-muted-foreground">{city.province}</p>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm font-medium">{city.value.toLocaleString()} paq</p>
+                      <p className="text-sm font-medium">{city.value} paq</p>
                       <p className="text-xs text-muted-foreground">${city.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
                     </div>
                   </div>
@@ -745,32 +910,95 @@ export function VisualDashboard({ result, config, mawbInfo, onReset }: VisualDas
               </div>
             </div>
 
-            {/* Province Table */}
+            {/* Top Districts/Barrios */}
             <div className="card-elevated p-6">
               <h4 className="font-semibold text-foreground mb-4 flex items-center gap-2">
-                📊 Estadísticas por Provincia
+                🏘️ Top 15 Barrios/Corregimientos
+              </h4>
+              {districtData.filter(d => d.name !== 'Sin Barrio').length > 0 ? (
+                <>
+                  <div className="h-[300px] mb-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={districtData.filter(d => d.name !== 'Sin Barrio').slice(0, 15)} layout="vertical">
+                        <XAxis type="number" />
+                        <YAxis dataKey="name" type="category" width={100} tick={{ fontSize: 11 }} />
+                        <Tooltip 
+                          formatter={(value: number) => [`${value} paquetes`, 'Paquetes']}
+                          labelFormatter={(label) => {
+                            const district = districtData.find(d => d.name === label);
+                            return district ? `${label} (${district.city}, ${district.province})` : label;
+                          }}
+                        />
+                        <Bar dataKey="value" fill="hsl(262, 83%, 58%)" radius={[0, 4, 4, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
+                    {districtData.filter(d => d.name !== 'Sin Barrio').slice(0, 10).map((district, i) => (
+                      <div key={district.name} className="flex items-center justify-between p-2 bg-muted/30 rounded">
+                        <div className="flex items-center gap-2">
+                          <span className="w-5 h-5 rounded-full bg-purple-100 flex items-center justify-center text-xs font-bold text-purple-700">
+                            {i + 1}
+                          </span>
+                          <div>
+                            <p className="text-sm font-medium truncate max-w-[100px]">{district.name}</p>
+                            <p className="text-xs text-muted-foreground">{district.city}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-medium">{district.value} paq</p>
+                          <p className="text-xs text-muted-foreground">${district.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-[300px] text-muted-foreground">
+                  <MapPin className="w-12 h-12 mb-4 opacity-30" />
+                  <p className="text-sm">No hay datos de barrio/corregimiento</p>
+                  <p className="text-xs mt-1">Mapea la columna "Barrio/Corregimiento" al subir el archivo</p>
+                </div>
+              )}
+            </div>
+
+            {/* Province Table with city count */}
+            <div className="card-elevated p-6 lg:col-span-2">
+              <h4 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                📊 Estadísticas Completas por Provincia
               </h4>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b">
-                      <th className="text-left py-2 px-2">Provincia</th>
-                      <th className="text-right py-2 px-2">Guías</th>
-                      <th className="text-right py-2 px-2">%</th>
-                      <th className="text-right py-2 px-2">Valor</th>
-                      <th className="text-right py-2 px-2">Peso</th>
+                    <tr className="border-b bg-muted/30">
+                      <th className="text-left py-2 px-3">Provincia</th>
+                      <th className="text-right py-2 px-3">Guías</th>
+                      <th className="text-right py-2 px-3">%</th>
+                      <th className="text-right py-2 px-3">Valor USD</th>
+                      <th className="text-right py-2 px-3">Peso</th>
+                      <th className="text-right py-2 px-3">Ciudades</th>
+                      <th className="text-right py-2 px-3">Barrios</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {provinceData.slice(0, 10).map((province) => (
-                      <tr key={province.name} className="border-b hover:bg-muted/30">
-                        <td className="py-2 px-2 font-medium">{province.name}</td>
-                        <td className="text-right py-2 px-2">{province.value.toLocaleString()}</td>
-                        <td className="text-right py-2 px-2 text-muted-foreground">{province.percentage}%</td>
-                        <td className="text-right py-2 px-2">${province.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
-                        <td className="text-right py-2 px-2">{province.totalWeight.toLocaleString()} lb</td>
-                      </tr>
-                    ))}
+                    {provinceData.map((province) => {
+                      const cities = citiesByProvince.get(province.name) || [];
+                      const districts = cities.flatMap(c => districtsByCity.get(c.name) || []);
+                      return (
+                        <tr key={province.name} className="border-b hover:bg-muted/30">
+                          <td className="py-2 px-3 font-medium flex items-center gap-2">
+                            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: province.color }} />
+                            {province.name}
+                          </td>
+                          <td className="text-right py-2 px-3">{province.value.toLocaleString()}</td>
+                          <td className="text-right py-2 px-3 text-muted-foreground">{province.percentage}%</td>
+                          <td className="text-right py-2 px-3">${province.totalValue.toLocaleString(undefined, { maximumFractionDigits: 0 })}</td>
+                          <td className="text-right py-2 px-3">{province.totalWeight.toLocaleString()} lb</td>
+                          <td className="text-right py-2 px-3 text-blue-600">{cities.filter(c => c.name !== 'Sin Ciudad').length}</td>
+                          <td className="text-right py-2 px-3 text-purple-600">{districts.filter(d => d.name !== 'Sin Barrio').length}</td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
