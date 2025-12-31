@@ -1300,6 +1300,89 @@ const PRODUCTOS_PROHIBIDOS: string[] = [
 ];
 
 // ═══════════════════════════════════════════════════════════════
+// CONTEXTOS NEGATIVOS - Palabras que invalidan clasificación farma/médica
+// ═══════════════════════════════════════════════════════════════
+
+const CONTEXTO_NEGATIVO_FARMA: string[] = [
+  // Ropa y accesorios
+  'pajamas', 'pijama', 'christmas', 'navidad', 'sleepwear', 'clothing', 'ropa',
+  'shirt', 'camisa', 'pants', 'pantalon', 'dress', 'vestido', 'jacket', 'chaqueta',
+  'sweater', 'sueter', 'hoodie', 'socks', 'calcetines', 'underwear', 'interior',
+  'fashion', 'moda', 'outfit', 'conjunto', 'costume', 'disfraz',
+  
+  // Electrónica y computación
+  'hard drive', 'disco duro', 'nas', 'storage', 'almacenamiento', 'ssd', 'hdd',
+  'computer', 'computadora', 'laptop', 'monitor', 'keyboard', 'teclado', 'mouse',
+  'router', 'server', 'servidor', 'network', 'red', 'usb', 'hdmi', 'cable',
+  'charger', 'cargador', 'adapter', 'adaptador', 'power bank', 'bateria externa',
+  'western digital', 'seagate', 'samsung ssd', 'crucial', 'kingston',
+  
+  // Óptica no médica
+  'sunglasses', 'gafas sol', 'lentes sol', 'gucci', 'ray ban', 'oakley', 'prada',
+  'fashion glasses', 'gafas moda', 'designer', 'diseñador', 'luxury', 'lujo',
+  
+  // Hogar y decoración
+  'curtain', 'cortina', 'hook', 'gancho', 'decoration', 'decoracion', 'home decor',
+  'decoracion hogar', 'furniture', 'mueble', 'lamp', 'lampara', 'rug', 'alfombra',
+  'pillow', 'almohada', 'blanket', 'cobija', 'towel', 'toalla', 'kitchen', 'cocina',
+  'bathroom', 'baño', 'garden', 'jardin', 'outdoor', 'exterior', 'patio',
+  
+  // Cocina y electrodomésticos
+  'air fryer', 'freidora', 'ninja', 'instant pot', 'blender', 'licuadora',
+  'microwave', 'microondas', 'toaster', 'tostadora', 'coffee maker', 'cafetera',
+  'pressure cooker', 'olla presion', 'slow cooker', 'olla lenta',
+  
+  // Belleza y cabello (no médico)
+  'hair extension', 'extension cabello', 'wig', 'peluca', 'crochet hair', 'braid',
+  'trenza', 'weave', 'afro', 'kinky', 'curly hair', 'cabello rizado', 'straight hair',
+  'cabello liso', 'hair color', 'tinte cabello', 'shampoo', 'conditioner',
+  'acondicionador', 'styling', 'peinado', 'hair dryer', 'secadora cabello',
+  
+  // Agricultura/Micología no farmacéutica  
+  'mushroom', 'hongo', 'fungi', 'mycology', 'micologia', 'culture', 'cultivo',
+  'spawn', 'substrate', 'sustrato', 'growing', 'cultivation', 'spore', 'espora',
+  'lions mane', 'melena leon', 'shiitake', 'oyster mushroom', 'reishi',
+  'hericium', 'gourmet mushroom', 'edible mushroom',
+  
+  // Artículos para bebés (no médicos)
+  'baby clothes', 'ropa bebe', 'diaper', 'pañal', 'bottle', 'biberon', 'pacifier',
+  'chupete', 'stroller', 'cochecito', 'car seat', 'silla carro', 'crib', 'cuna',
+  'baby monitor', 'baby toy', 'juguete bebe', 'teether', 'mordedor',
+  
+  // Mascotas
+  'pet', 'mascota', 'dog', 'perro', 'cat', 'gato', 'fish tank', 'acuario',
+  'bird', 'pajaro', 'hamster', 'rabbit', 'conejo', 'pet food', 'alimento mascota',
+  'pet toy', 'juguete mascota', 'leash', 'correa', 'collar pet', 'collar mascota'
+];
+
+// Categorías que requieren validación estricta (múltiples coincidencias)
+const CATEGORIAS_ESTRICTAS = new Set<CategoriaProducto>([
+  'medicamentos',
+  'productos_medicos',
+  'suplementos',
+  'veterinarios'
+]);
+
+// Palabras muy específicas que SÍ deben clasificar como farma (nombres de medicamentos reales)
+const PALABRAS_FARMA_DEFINITIVAS: string[] = [
+  'amoxicillin', 'amoxicilina', 'azithromycin', 'azitromicina', 'metformin', 'metformina',
+  'omeprazole', 'omeprazol', 'lisinopril', 'atorvastatin', 'atorvastatina',
+  'levothyroxine', 'levotiroxina', 'amlodipine', 'amlodipino', 'metoprolol',
+  'losartan', 'gabapentin', 'gabapentina', 'sertraline', 'sertralina',
+  'alprazolam', 'prednisone', 'prednisona', 'tramadol', 'hydrocodone', 'hidrocodona',
+  'oxycodone', 'oxicodona', 'furosemide', 'furosemida', 'pantoprazole', 'pantoprazol',
+  'escitalopram', 'duloxetine', 'duloxetina', 'trazodone', 'trazodona',
+  'montelukast', 'fluoxetine', 'fluoxetina', 'clonazepam', 'diazepam',
+  'ciprofloxacin', 'ciprofloxacino', 'doxycycline', 'doxiciclina',
+  'acetaminophen', 'acetaminofen', 'ibuprofen', 'ibuprofeno', 'naproxen', 'naproxeno',
+  'aspirin', 'aspirina', 'insulin', 'insulina', 'ozempic', 'wegovy', 'trulicity',
+  'jardiance', 'januvia', 'methotrexate', 'metotrexato', 'hydroxychloroquine',
+  'pharmaceutical', 'farmaceutico', 'prescription', 'receta medica', 'rx',
+  'tablet 500mg', 'tableta 500mg', 'capsule 250mg', 'capsula 250mg',
+  'mg tablet', 'mg tableta', 'mg capsule', 'mg capsula'
+];
+
+// ═══════════════════════════════════════════════════════════════
 // CLASE PRINCIPAL: CLASIFICADOR INTELIGENTE
 // ═══════════════════════════════════════════════════════════════
 
@@ -1325,8 +1408,18 @@ export class ClasificadorInteligente {
     // Verificar si es documento
     const esDocumento = this.verificarDocumento(descNormalizada);
     
+    // Verificar si tiene contexto negativo para farma/médico
+    const tieneContextoNegativo = this.verificarContextoNegativo(descNormalizada);
+    
+    // Verificar si tiene palabras farmacéuticas definitivas
+    const esFarmaDefinitivo = this.verificarFarmaDefinitivo(descNormalizada);
+    
     // Buscar mejor coincidencia de categoría
-    const { patron, confianza, palabrasDetectadas } = this.buscarMejorCoincidencia(descNormalizada);
+    const { patron, confianza, palabrasDetectadas } = this.buscarMejorCoincidencia(
+      descNormalizada, 
+      tieneContextoNegativo,
+      esFarmaDefinitivo
+    );
     
     // Determinar categoría aduanera
     const categoriaAduanera = this.determinarCategoriaAduanera(valor, esDocumento);
@@ -1385,9 +1478,32 @@ export class ClasificadorInteligente {
   }
   
   /**
-   * Busca la mejor coincidencia en los patrones
+   * Verifica si el texto tiene contexto negativo para clasificación farma/médica
    */
-  private static buscarMejorCoincidencia(descripcion: string): {
+  private static verificarContextoNegativo(descripcion: string): boolean {
+    return CONTEXTO_NEGATIVO_FARMA.some(palabra => 
+      descripcion.includes(palabra)
+    );
+  }
+  
+  /**
+   * Verifica si contiene palabras farmacéuticas definitivas (nombres reales de medicamentos)
+   */
+  private static verificarFarmaDefinitivo(descripcion: string): boolean {
+    return PALABRAS_FARMA_DEFINITIVAS.some(palabra => 
+      descripcion.includes(palabra)
+    );
+  }
+  
+  /**
+   * Busca la mejor coincidencia en los patrones
+   * Aplica validación estricta para categorías sensibles
+   */
+  private static buscarMejorCoincidencia(
+    descripcion: string,
+    tieneContextoNegativo: boolean,
+    esFarmaDefinitivo: boolean
+  ): {
     patron: PatronCategoria | null;
     confianza: number;
     palabrasDetectadas: string[];
@@ -1402,6 +1518,27 @@ export class ClasificadorInteligente {
       );
       
       if (palabrasEncontradas.length > 0) {
+        // Validación especial para categorías estrictas (farma/médico)
+        if (CATEGORIAS_ESTRICTAS.has(patron.categoria)) {
+          // Si es farma definitivo, permitir clasificación
+          if (esFarmaDefinitivo) {
+            // OK, continuar
+          }
+          // Si tiene contexto negativo, NO clasificar como farma/médico
+          else if (tieneContextoNegativo) {
+            continue; // Saltar esta categoría
+          }
+          // Si solo tiene 1 coincidencia genérica, no es suficiente
+          else if (palabrasEncontradas.length === 1) {
+            const palabraGenerica = ['syringe', 'jeringa', 'pump', 'bomba', 'dose', 
+              'cream', 'crema', 'gel', 'lotion', 'locion', 'spray', 'drops', 'gotas',
+              'liquid', 'liquido', 'powder', 'polvo', 'oil', 'aceite', 'extract', 'extracto'];
+            if (palabraGenerica.some(p => palabrasEncontradas.includes(p))) {
+              continue; // Palabras muy genéricas - no suficiente
+            }
+          }
+        }
+        
         // Score basado en cantidad de coincidencias y longitud de palabras
         const score = palabrasEncontradas.reduce((acc, p) => acc + p.length, 0);
         
