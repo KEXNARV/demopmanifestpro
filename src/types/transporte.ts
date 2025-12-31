@@ -25,15 +25,16 @@ export interface ConfiguracionModo {
 export type ZonaAduanera = 
   | 'aeropuerto_tocumen'           // Aeropuerto Internacional de Tocumen
   | 'aeropuerto_howard'            // Aeropuerto Howard
-  | 'puerto_colon'                 // Puerto de Colón (Manzanillo, CCT, Evergreen)
+  | 'puerto_cristobal'             // Puerto Cristóbal (Panama Ports Co.)
+  | 'puerto_manzanillo'            // Manzanillo International Terminal (MIT)
+  | 'puerto_colon_container'       // Colón Container Terminal (CCT)
   | 'puerto_balboa'                // Puerto de Balboa (Pacífico)
-  | 'puerto_cristobal'             // Puerto Cristóbal
+  | 'puerto_psa_rodman'            // PSA Panama - Rodman
   | 'frontera_paso_canoas'         // Frontera Costa Rica
-  | 'frontera_darien'              // Frontera Colombia
+  | 'frontera_guabito'             // Frontera Guabito/Sixaola (Costa Rica)
   | 'zona_libre_colon'             // Zona Libre de Colón (ZLC)
   | 'paso_canoas'                  // Alias: Paso Canoas (Chiriquí)
-  | 'guabito'                      // Frontera Guabito/Sixaola (Bocas del Toro)
-  | 'darien'                       // Alias: Darién
+  | 'guabito'                      // Alias: Guabito (Bocas del Toro)
   | 'panama_pacifico';             // Área Panamá Pacífico
 
 // ============================================
@@ -119,8 +120,8 @@ export interface CartaDePorte extends DocumentoMaestroBase {
   nombreConductor: string;
   licenciaConductor: string;
   rutaTransporte: string;          // Descripción de la ruta
-  puntoFronterizo: 'paso_canoas' | 'darien';
-  paisOrigen: 'CR' | 'CO';         // Costa Rica o Colombia
+  puntoFronterizo: 'paso_canoas' | 'guabito';
+  paisOrigen: 'CR';                // Costa Rica (ambas fronteras)
   horaEstimadaLlegada?: Date;
   sellosAduaneros: string[];
 }
@@ -229,7 +230,7 @@ export const CONFIGURACIONES_MODO: Record<ModoTransporte, ConfiguracionModo> = {
     documentoIndividual: 'HBL (House Bill of Lading)',
     unidadCarga: 'Contenedor',
     tiempoTransitoPromedio: 21,
-    zonaAduanera: 'puerto_colon'
+    zonaAduanera: 'puerto_cristobal'
   },
   terrestre: {
     id: 'terrestre',
@@ -277,13 +278,31 @@ export const ZONAS_ADUANERAS: Record<ZonaAduanera, InfoZonaAduanera> = {
     codigoAduana: 'PTYH',
     modosPermitidos: ['aereo']
   },
-  puerto_colon: {
-    id: 'puerto_colon',
-    nombre: 'Puertos de Colón (Manzanillo, CCT, Evergreen)',
+  puerto_cristobal: {
+    id: 'puerto_cristobal',
+    nombre: 'Puerto Cristóbal (Panama Ports Co.)',
     tipo: 'puerto',
     ciudad: 'Colón',
     provincia: 'Colón',
-    codigoAduana: 'CLNP',
+    codigoAduana: 'CLNC',
+    modosPermitidos: ['maritimo']
+  },
+  puerto_manzanillo: {
+    id: 'puerto_manzanillo',
+    nombre: 'Manzanillo International Terminal (MIT)',
+    tipo: 'puerto',
+    ciudad: 'Colón',
+    provincia: 'Colón',
+    codigoAduana: 'CLNM',
+    modosPermitidos: ['maritimo']
+  },
+  puerto_colon_container: {
+    id: 'puerto_colon_container',
+    nombre: 'Colón Container Terminal (CCT)',
+    tipo: 'puerto',
+    ciudad: 'Colón',
+    provincia: 'Colón',
+    codigoAduana: 'CLCT',
     modosPermitidos: ['maritimo']
   },
   puerto_balboa: {
@@ -295,13 +314,13 @@ export const ZONAS_ADUANERAS: Record<ZonaAduanera, InfoZonaAduanera> = {
     codigoAduana: 'PTYB',
     modosPermitidos: ['maritimo']
   },
-  puerto_cristobal: {
-    id: 'puerto_cristobal',
-    nombre: 'Puerto Cristóbal',
+  puerto_psa_rodman: {
+    id: 'puerto_psa_rodman',
+    nombre: 'PSA Panama - Rodman',
     tipo: 'puerto',
-    ciudad: 'Colón',
-    provincia: 'Colón',
-    codigoAduana: 'CLNC',
+    ciudad: 'Ciudad de Panamá',
+    provincia: 'Panamá',
+    codigoAduana: 'PTYR',
     modosPermitidos: ['maritimo']
   },
   frontera_paso_canoas: {
@@ -313,13 +332,13 @@ export const ZONAS_ADUANERAS: Record<ZonaAduanera, InfoZonaAduanera> = {
     codigoAduana: 'PCFR',
     modosPermitidos: ['terrestre']
   },
-  frontera_darien: {
-    id: 'frontera_darien',
-    nombre: 'Frontera Darién (Colombia)',
+  frontera_guabito: {
+    id: 'frontera_guabito',
+    nombre: 'Guabito / Sixaola (Costa Rica)',
     tipo: 'frontera',
-    ciudad: 'Yaviza',
-    provincia: 'Darién',
-    codigoAduana: 'DRFR',
+    ciudad: 'Guabito',
+    provincia: 'Bocas del Toro',
+    codigoAduana: 'GBFR',
     modosPermitidos: ['terrestre']
   },
   zona_libre_colon: {
@@ -342,20 +361,11 @@ export const ZONAS_ADUANERAS: Record<ZonaAduanera, InfoZonaAduanera> = {
   },
   guabito: {
     id: 'guabito',
-    nombre: 'Guabito / Sixaola (Frontera CR)',
+    nombre: 'Guabito / Sixaola (Costa Rica)',
     tipo: 'frontera',
     ciudad: 'Guabito',
     provincia: 'Bocas del Toro',
     codigoAduana: 'GBFR',
-    modosPermitidos: ['terrestre']
-  },
-  darien: {
-    id: 'darien',
-    nombre: 'Darién (Frontera CO)',
-    tipo: 'frontera',
-    ciudad: 'Yaviza',
-    provincia: 'Darién',
-    codigoAduana: 'DRFR',
     modosPermitidos: ['terrestre']
   },
   panama_pacifico: {

@@ -28,14 +28,16 @@ const ZONAS_POR_MODO: Record<ModoTransporte, ZonaAduanera[]> = {
     'zona_libre_colon'
   ],
   maritimo: [
-    'zona_libre_colon',
-    'puerto_colon',
+    'puerto_cristobal',
+    'puerto_manzanillo',
+    'puerto_colon_container',
     'puerto_balboa',
-    'puerto_cristobal'
+    'puerto_psa_rodman',
+    'zona_libre_colon'
   ],
   terrestre: [
     'frontera_paso_canoas',
-    'frontera_darien'
+    'frontera_guabito'
   ]
 };
 

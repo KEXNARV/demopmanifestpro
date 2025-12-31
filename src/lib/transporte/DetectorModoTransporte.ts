@@ -337,15 +337,18 @@ export class DetectorModoTransporte {
         return 'puerto_balboa';
       }
       if (textoCompleto.includes('cristobal')) return 'puerto_cristobal';
+      if (textoCompleto.includes('manzanillo') || textoCompleto.includes('mit')) return 'puerto_manzanillo';
+      if (textoCompleto.includes('cct') || textoCompleto.includes('container terminal')) return 'puerto_colon_container';
+      if (textoCompleto.includes('rodman') || textoCompleto.includes('psa')) return 'puerto_psa_rodman';
       if (textoCompleto.includes('zona libre') || textoCompleto.includes('zlc')) {
         return 'zona_libre_colon';
       }
-      return 'puerto_colon';
+      return 'puerto_cristobal';
     }
     
     if (modo === 'terrestre') {
-      if (textoCompleto.includes('darien') || textoCompleto.includes('colombia')) {
-        return 'frontera_darien';
+      if (textoCompleto.includes('guabito') || textoCompleto.includes('sixaola') || textoCompleto.includes('bocas')) {
+        return 'frontera_guabito';
       }
       return 'frontera_paso_canoas';
     }
