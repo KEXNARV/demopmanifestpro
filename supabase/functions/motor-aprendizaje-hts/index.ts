@@ -54,15 +54,43 @@ serve(async (req) => {
   }
 
   try {
+    // ============================================
+    // AUTHENTICATION CHECK - Use anon key with RLS
+    // ============================================
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader) {
+      console.error('[Motor Aprendizaje] No authorization header provided');
+      return new Response(
+        JSON.stringify({ error: 'Autenticación requerida' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!;
-    const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    const SUPABASE_ANON_KEY = Deno.env.get('SUPABASE_ANON_KEY')!;
 
     if (!LOVABLE_API_KEY) {
       throw new Error('LOVABLE_API_KEY is not configured');
     }
 
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+    // Use anon key with user's auth header to respect RLS policies
+    const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      global: { headers: { Authorization: authHeader } }
+    });
+
+    // Verify user is authenticated
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      console.error('[Motor Aprendizaje] Authentication failed:', authError?.message);
+      return new Response(
+        JSON.stringify({ error: 'No autorizado' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log(`[Motor Aprendizaje] Usuario autenticado: ${user.id}`);
+
     const { descripcion, valorUSD, peso, guia, mawb } = await req.json() as ClasificacionRequest;
 
     console.log(`[Motor Aprendizaje] Procesando: "${descripcion.substring(0, 50)}..." valor: $${valorUSD}`);

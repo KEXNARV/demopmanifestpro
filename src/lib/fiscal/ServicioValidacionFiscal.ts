@@ -136,6 +136,35 @@ export class ServicioValidacionFiscal {
   async buscarPorNombre(nombre: string): Promise<ResultadoValidacionFiscal> {
     const nombreNormalizado = normalizarNombre(nombre);
     
+    // Input validation to prevent DoS via expensive ILIKE queries
+    if (nombreNormalizado.length < 3) {
+      return {
+        nombreOriginal: nombre,
+        nombreNormalizado,
+        rucCedula: null,
+        tipoDocumento: null,
+        encontrado: false,
+        confianza: 0,
+        sugerencias: [],
+        requiereRevision: true,
+        mensaje: 'Nombre muy corto para búsqueda (mínimo 3 caracteres)'
+      };
+    }
+    
+    if (nombreNormalizado.length > 100) {
+      return {
+        nombreOriginal: nombre,
+        nombreNormalizado: nombreNormalizado.substring(0, 100),
+        rucCedula: null,
+        tipoDocumento: null,
+        encontrado: false,
+        confianza: 0,
+        sugerencias: [],
+        requiereRevision: true,
+        mensaje: 'Nombre demasiado largo (máximo 100 caracteres)'
+      };
+    }
+    
     // Búsqueda exacta en caché
     const cacheHit = this.cacheConsignatarios.get(nombreNormalizado);
     if (cacheHit) {
@@ -152,13 +181,14 @@ export class ServicioValidacionFiscal {
       };
     }
 
-    // Búsqueda en base de datos con coincidencia parcial
+    // Búsqueda en base de datos - use prefix search instead of contains for better security
+    // Prefix search (text%) is much faster and less prone to DoS than contains (%text%)
     try {
       const { data, error } = await supabase
         .from('consignatarios_fiscales')
         .select('*')
         .eq('activo', true)
-        .ilike('nombre_normalizado', `%${nombreNormalizado}%`)
+        .ilike('nombre_normalizado', `${nombreNormalizado}%`)
         .order('usos_exitosos', { ascending: false })
         .limit(5);
 
