@@ -18,9 +18,11 @@ import {
   Package, DollarSign, Calculator, Receipt, 
   Download, AlertTriangle, Search, Filter,
   ChevronLeft, ChevronRight, ArrowLeft, FileSpreadsheet,
-  Plane, CheckCircle2, AlertCircle, TrendingUp, Pill, Barcode, Brain
+  Plane, CheckCircle2, AlertCircle, TrendingUp, Pill, Barcode, Brain,
+  MapPin, Building2, Map
 } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip, BarChart, Bar, XAxis, YAxis } from 'recharts';
+import { COLORES_PROVINCIA } from '@/lib/panamaGeography';
 import * as XLSX from 'xlsx';
 import { saveAs } from 'file-saver';
 
@@ -217,7 +219,74 @@ export default function DashboardManifiesto() {
   const loteB = useMemo(() => paquetes.filter(p => (p.valorUSD || 0) > umbral), [paquetes, umbral]);
   const conRestricciones = useMemo(() => paquetes.filter(p => p.requierePermiso), [paquetes]);
 
-  // Descripciones para análisis GTIN
+  // Distribución geográfica por provincia
+  const provinceData = useMemo(() => {
+    const byProvince: Record<string, { count: number; value: number; weight: number }> = {};
+    paquetes.forEach(paq => {
+      const province = paq.provincia || 'Sin Provincia';
+      if (!byProvince[province]) {
+        byProvince[province] = { count: 0, value: 0, weight: 0 };
+      }
+      byProvince[province].count += 1;
+      byProvince[province].value += (paq.valorUSD || 0);
+      byProvince[province].weight += (paq.peso || 0);
+    });
+    return Object.entries(byProvince)
+      .map(([name, data]) => ({
+        name,
+        value: data.count,
+        totalValue: data.value,
+        totalWeight: data.weight,
+        percentage: paquetes.length > 0 ? ((data.count / paquetes.length) * 100).toFixed(1) : '0',
+        color: COLORES_PROVINCIA[name] || 'hsl(215, 16%, 47%)',
+      }))
+      .sort((a, b) => b.value - a.value);
+  }, [paquetes]);
+
+  // Distribución geográfica por ciudad (Top 15)
+  const cityData = useMemo(() => {
+    const byCity: Record<string, { count: number; value: number; province: string }> = {};
+    paquetes.forEach(paq => {
+      const city = paq.ciudad || 'Sin Ciudad';
+      if (!byCity[city]) {
+        byCity[city] = { count: 0, value: 0, province: paq.provincia || '' };
+      }
+      byCity[city].count += 1;
+      byCity[city].value += (paq.valorUSD || 0);
+    });
+    return Object.entries(byCity)
+      .map(([name, data]) => ({
+        name,
+        value: data.count,
+        totalValue: data.value,
+        province: data.province,
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 15);
+  }, [paquetes]);
+
+  // Distribución geográfica por barrio/corregimiento (Top 15)
+  const districtData = useMemo(() => {
+    const byDistrict: Record<string, { count: number; value: number; city: string }> = {};
+    paquetes.forEach(paq => {
+      const district = (paq as any).corregimiento || (paq as any).barrio || 'Sin Barrio';
+      if (!byDistrict[district]) {
+        byDistrict[district] = { count: 0, value: 0, city: paq.ciudad || '' };
+      }
+      byDistrict[district].count += 1;
+      byDistrict[district].value += (paq.valorUSD || 0);
+    });
+    return Object.entries(byDistrict)
+      .map(([name, data]) => ({
+        name,
+        value: data.count,
+        totalValue: data.value,
+        city: data.city,
+      }))
+      .sort((a, b) => b.value - a.value)
+      .slice(0, 15);
+  }, [paquetes]);
+
   const descripciones = useMemo(() => paquetes.map(p => p.descripcion || ''), [paquetes]);
   
   // Convertir paquetes a ManifestRow para revisión GTIN
@@ -699,10 +768,14 @@ export default function DashboardManifiesto() {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="agenteAI" className="w-full">
-            <TabsList className="grid w-full grid-cols-7 mb-4">
+            <TabsList className="grid w-full grid-cols-8 mb-4">
               <TabsTrigger value="agenteAI" className="text-primary">
                 <Brain className="h-3 w-3 mr-1" />
                 Agente AI
+              </TabsTrigger>
+              <TabsTrigger value="geografico" className="text-emerald-600 dark:text-emerald-400">
+                <MapPin className="h-3 w-3 mr-1" />
+                Geográfico
               </TabsTrigger>
               <TabsTrigger value="loteA">
                 Lote A ({loteA.length})
@@ -737,6 +810,182 @@ export default function DashboardManifiesto() {
               />
               <div className="mt-6">
                 <TableroPanelAprendizaje />
+              </div>
+            </TabsContent>
+
+            <TabsContent value="geografico">
+              <div className="space-y-6">
+                {/* Distribución por Provincia */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Map className="h-5 w-5 text-emerald-600" />
+                        Distribución por Provincia
+                      </CardTitle>
+                      <CardDescription>
+                        {provinceData.length} provincias detectadas
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="h-[350px]">
+                      {provinceData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={provinceData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={50}
+                              outerRadius={90}
+                              paddingAngle={2}
+                              dataKey="value"
+                              label={({ name, percentage }) => `${name} (${percentage}%)`}
+                              labelLine={true}
+                            >
+                              {provinceData.map((entry, index) => (
+                                <Cell key={`cell-prov-${index}`} fill={entry.color} />
+                              ))}
+                            </Pie>
+                            <Tooltip 
+                              formatter={(value, name, props) => [
+                                `${value} paquetes - $${props.payload.totalValue.toFixed(2)}`,
+                                props.payload.name
+                              ]}
+                            />
+                            <Legend />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-muted-foreground">
+                          <MapPin className="h-8 w-8 mr-2 opacity-30" />
+                          No hay datos geográficos
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                  {/* Top 15 Ciudades */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Building2 className="h-5 w-5 text-blue-600" />
+                        Top 15 Ciudades
+                      </CardTitle>
+                      <CardDescription>
+                        Ciudades con más entregas
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent className="h-[350px]">
+                      {cityData.length > 0 ? (
+                        <ResponsiveContainer width="100%" height="100%">
+                          <BarChart data={cityData} layout="vertical" margin={{ left: 80, right: 20 }}>
+                            <XAxis type="number" />
+                            <YAxis 
+                              type="category" 
+                              dataKey="name" 
+                              tick={{ fontSize: 11 }}
+                              width={75}
+                            />
+                            <Tooltip 
+                              formatter={(value, name, props) => [
+                                `${value} paquetes - $${props.payload.totalValue.toFixed(2)}`,
+                                props.payload.province || 'Ciudad'
+                              ]}
+                            />
+                            <Bar dataKey="value" fill="hsl(217, 91%, 60%)" radius={[0, 4, 4, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      ) : (
+                        <div className="h-full flex items-center justify-center text-muted-foreground">
+                          <Building2 className="h-8 w-8 mr-2 opacity-30" />
+                          No hay datos de ciudades
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Top 15 Barrios/Corregimientos */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <MapPin className="h-5 w-5 text-purple-600" />
+                      Top 15 Barrios / Corregimientos
+                    </CardTitle>
+                    <CardDescription>
+                      Zonas con mayor concentración de entregas
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="h-[300px]">
+                    {districtData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={districtData} margin={{ left: 10, right: 20, bottom: 60 }}>
+                          <XAxis 
+                            dataKey="name" 
+                            angle={-45} 
+                            textAnchor="end" 
+                            tick={{ fontSize: 10 }}
+                            height={80}
+                          />
+                          <YAxis />
+                          <Tooltip 
+                            formatter={(value, name, props) => [
+                              `${value} paquetes - $${props.payload.totalValue.toFixed(2)}`,
+                              props.payload.city || 'Barrio'
+                            ]}
+                          />
+                          <Bar dataKey="value" fill="hsl(262, 83%, 58%)" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-muted-foreground">
+                        <MapPin className="h-8 w-8 mr-2 opacity-30" />
+                        No hay datos de barrios/corregimientos
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                {/* Tabla resumen por provincia */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Resumen por Provincia</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="rounded-md border overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Provincia</TableHead>
+                            <TableHead className="text-right">Paquetes</TableHead>
+                            <TableHead className="text-right">%</TableHead>
+                            <TableHead className="text-right">Valor Total</TableHead>
+                            <TableHead className="text-right">Peso Total</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {provinceData.map((prov, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell className="font-medium">
+                                <div className="flex items-center gap-2">
+                                  <div 
+                                    className="w-3 h-3 rounded-full" 
+                                    style={{ backgroundColor: prov.color }}
+                                  />
+                                  {prov.name}
+                                </div>
+                              </TableCell>
+                              <TableCell className="text-right">{prov.value}</TableCell>
+                              <TableCell className="text-right">{prov.percentage}%</TableCell>
+                              <TableCell className="text-right">${prov.totalValue.toFixed(2)}</TableCell>
+                              <TableCell className="text-right">{prov.totalWeight.toFixed(2)} lb</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             </TabsContent>
 
