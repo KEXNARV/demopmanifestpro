@@ -7,12 +7,12 @@
  * 3. Revisión y Conciliación de Liquidación
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Upload, FileSpreadsheet, FileText, X, AlertCircle, CheckCircle2, 
   Loader2, ChevronRight, ChevronLeft, Sparkles, AlertTriangle,
-  Package, DollarSign, Scale, FileSearch
+  Package, DollarSign, Scale, FileSearch, Play
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -25,6 +25,7 @@ import { toast } from '@/hooks/use-toast';
 import { SelectorModoTransporte, useTransportMode } from '@/components/transporte/SelectorModoTransporte';
 import { PROVINCIAS_PANAMA } from '@/lib/panamaGeography';
 import { getCorregimientosPorProvincia } from '@/lib/panamaGeography/corregimientos';
+import { guardarManifiesto } from '@/lib/db/database';
 
 // Tipos
 interface ArchivosCargados {
@@ -94,6 +95,7 @@ export function FlujoCargaUnificado() {
   const navigate = useNavigate();
   const inputManifiestoRef = useRef<HTMLInputElement>(null);
   const inputFacturasRef = useRef<HTMLInputElement>(null);
+  const workerRef = useRef<Worker | null>(null);
   
   // Estados principales
   const [pasoActual, setPasoActual] = useState<PasoActual>(1);
@@ -101,9 +103,19 @@ export function FlujoCargaUnificado() {
   const [progreso, setProgreso] = useState<ProgresoExtraccion>({ fase: 'idle', porcentaje: 0, mensaje: '' });
   const [datosExtraidos, setDatosExtraidos] = useState<DatosExtraidos | null>(null);
   const [isDragging, setIsDragging] = useState<'manifiesto' | 'facturas' | null>(null);
+  const [manifiestoIdGuardado, setManifiestoIdGuardado] = useState<string | null>(null);
   
   // Modo de transporte
   const { modo, zona, setModo, setZona } = useTransportMode();
+
+  // Cleanup del worker al desmontar
+  useEffect(() => {
+    return () => {
+      if (workerRef.current) {
+        workerRef.current.terminate();
+      }
+    };
+  }, []);
 
   // Handlers de archivos
   const handleManifiestoSelect = useCallback((file: File) => {
@@ -151,7 +163,7 @@ export function FlujoCargaUnificado() {
     }
   };
 
-  // Procesamiento (simulado - se conectará con el worker real)
+  // Procesamiento REAL con el Worker
   const iniciarProcesamiento = useCallback(async () => {
     if (!archivos.manifiesto) {
       toast({ variant: 'destructive', title: 'Sin manifiesto', description: 'Carga un archivo de manifiesto' });
@@ -159,55 +171,145 @@ export function FlujoCargaUnificado() {
     }
 
     setPasoActual(2);
-    setProgreso({ fase: 'extrayendo-manifiesto', porcentaje: 10, mensaje: 'Analizando manifiesto Excel...' });
+    setProgreso({ fase: 'extrayendo-manifiesto', porcentaje: 5, mensaje: 'Iniciando procesamiento...' });
 
     try {
-      // Simular procesamiento del manifiesto
-      await new Promise(r => setTimeout(r, 1500));
-      setProgreso({ fase: 'extrayendo-manifiesto', porcentaje: 30, mensaje: 'Detectando columnas automáticamente...' });
-      
-      await new Promise(r => setTimeout(r, 1000));
-      setProgreso({ fase: 'extrayendo-facturas', porcentaje: 50, mensaje: `Procesando ${archivos.facturas.length} facturas con IA...` });
-      
-      // Simular extracción de facturas
-      await new Promise(r => setTimeout(r, 2000));
-      setProgreso({ fase: 'vinculando', porcentaje: 80, mensaje: 'Vinculando facturas con paquetes...' });
-      
-      await new Promise(r => setTimeout(r, 1000));
-      
-      // Datos de ejemplo (se reemplazarán con datos reales del worker)
-      const datosSimulados: DatosExtraidos = {
-        mawb: '230-12345678',
-        totalPaquetes: 150,
-        paquetes: [
-          { tracking: 'TBA123456789', descripcion: 'Electronics', valorUSD: 250, peso: 2.5, destinatario: 'Juan Pérez', provincia: 'Panamá', corregimiento: 'San Francisco', categoriaAduanera: 'C' },
-          { tracking: 'TBA987654321', descripcion: 'Clothing', valorUSD: 85, peso: 1.2, destinatario: 'María García', provincia: 'Chiriquí', corregimiento: 'David', categoriaAduanera: 'B' },
-          { tracking: 'TBA456789123', descripcion: 'Supplements', valorUSD: 3500, peso: 5.0, destinatario: 'Carlos López', provincia: 'Panamá', corregimiento: 'Bella Vista', categoriaAduanera: 'D' },
-        ],
-        facturas: [
-          { nombreArchivo: 'invoice_TBA123456789.pdf', awbReferencia: 'TBA123456789', valorTotal: 248.50, valorFlete: 25, hsCode: '8471.30', descripcion: 'Laptop computer', fechaFactura: '2025-01-03' },
-          { nombreArchivo: 'invoice_TBA456789123.pdf', awbReferencia: 'TBA456789123', valorTotal: 3450, valorFlete: 150, hsCode: '2106.90', descripcion: 'Dietary supplements', fechaFactura: '2025-01-02' },
-        ],
-        vinculaciones: [
-          { trackingManifiesto: 'TBA123456789', awbFactura: 'TBA123456789', estado: 'discrepancia', discrepancias: [
-            { campo: 'valor', valorManifiesto: 250, valorFactura: 248.50, diferencia: 1.50, porcentajeDiferencia: 0.6 }
-          ]},
-          { trackingManifiesto: 'TBA987654321', awbFactura: '', estado: 'sin-factura' },
-          { trackingManifiesto: 'TBA456789123', awbFactura: 'TBA456789123', estado: 'discrepancia', discrepancias: [
-            { campo: 'valor', valorManifiesto: 3500, valorFactura: 3450, diferencia: 50, porcentajeDiferencia: 1.4 }
-          ]},
-        ]
+      // Crear el Worker
+      const worker = new Worker(
+        new URL('@/lib/workers/procesador.worker.ts', import.meta.url),
+        { type: 'module' }
+      );
+      workerRef.current = worker;
+
+      // Leer el archivo como ArrayBuffer
+      const arrayBuffer = await archivos.manifiesto.arrayBuffer();
+
+      // Manejar mensajes del worker
+      worker.onmessage = async (event) => {
+        const { tipo, payload } = event.data;
+
+        switch (tipo) {
+          case 'PROGRESO':
+            const faseActual = payload.progreso < 30 ? 'extrayendo-manifiesto' :
+                              payload.progreso < 70 ? 'extrayendo-facturas' :
+                              payload.progreso < 95 ? 'vinculando' : 'completado';
+            setProgreso({
+              fase: faseActual,
+              porcentaje: payload.progreso,
+              mensaje: payload.mensaje
+            });
+            break;
+
+          case 'COMPLETADO':
+            setProgreso({ fase: 'completado', porcentaje: 100, mensaje: '¡Procesamiento completado!' });
+            
+            // Guardar en la base de datos
+            const resultado = await guardarManifiesto({
+              manifiesto: {
+                mawb: payload.manifiesto?.mawb || 'SIN-MAWB',
+                fechaProcesamiento: new Date().toISOString(),
+                totalFilas: payload.paquetes?.length || 0,
+                filasValidas: payload.paquetes?.length || 0,
+                filasConErrores: 0
+              },
+              filas: payload.paquetes || [],
+              resumen: {
+                totalPaquetes: payload.paquetes?.length || 0,
+                valorTotal: payload.paquetes?.reduce((s: number, p: any) => s + (p.valorUSD || 0), 0) || 0,
+                pesoTotal: payload.paquetes?.reduce((s: number, p: any) => s + (p.peso || 0), 0) || 0,
+                promedioValor: 0,
+                promedioPeso: 0,
+                porCategoria: {},
+                porProvincia: {},
+                porCategoriaAduanera: {},
+                tiempoProcesamiento: 0
+              },
+              deteccionColumnas: { mapeo: {}, confianza: {}, noDetectados: [], sugerencias: {} },
+              clasificacion: { categorias: {}, requierenPermisos: 0, prohibidos: 0 },
+              errores: [],
+              advertencias: payload.analisis?.advertencias || []
+            });
+
+            if (resultado.exito) {
+              setManifiestoIdGuardado(resultado.manifiestoId);
+              
+              // Crear datos extraídos para mostrar en paso 3
+              const paquetesExtraidos: PaqueteExtraido[] = (payload.paquetes || []).map((p: any) => ({
+                tracking: p.numeroGuia || p.tracking || '',
+                descripcion: p.descripcion || '',
+                valorUSD: p.valorUSD || 0,
+                peso: p.peso || 0,
+                destinatario: p.consignatario || p.destinatario || '',
+                provincia: p.provincia || '',
+                corregimiento: p.corregimiento || '',
+                categoriaAduanera: p.categoriaAduanera || 'B'
+              }));
+
+              // Generar vinculaciones (paquetes sin factura continúan normalmente)
+              const vinculaciones: Vinculacion[] = paquetesExtraidos.map(p => ({
+                trackingManifiesto: p.tracking,
+                awbFactura: '', // Sin factura asociada
+                estado: 'sin-factura' as const
+              }));
+
+              setDatosExtraidos({
+                mawb: payload.manifiesto?.mawb || 'SIN-MAWB',
+                totalPaquetes: paquetesExtraidos.length,
+                paquetes: paquetesExtraidos,
+                facturas: [],
+                vinculaciones
+              });
+
+              toast({
+                title: '✅ Procesamiento exitoso',
+                description: `${paquetesExtraidos.length} paquetes procesados y clasificados`
+              });
+            } else {
+              toast({
+                variant: 'destructive',
+                title: 'Error al guardar',
+                description: resultado.mensaje
+              });
+            }
+
+            // Avanzar al paso 3
+            setTimeout(() => setPasoActual(3), 1000);
+            break;
+
+          case 'ERROR':
+            setProgreso({ 
+              fase: 'error', 
+              porcentaje: 0, 
+              mensaje: payload.mensaje || 'Error en procesamiento'
+            });
+            toast({ 
+              variant: 'destructive', 
+              title: 'Error', 
+              description: payload.mensaje || 'Error procesando el manifiesto'
+            });
+            break;
+        }
       };
-      
-      setDatosExtraidos(datosSimulados);
-      setProgreso({ fase: 'completado', porcentaje: 100, mensaje: '¡Procesamiento completado!' });
-      
-      // Avanzar al paso 3 automáticamente
-      setTimeout(() => setPasoActual(3), 1500);
-      
+
+      worker.onerror = (error) => {
+        console.error('Error del worker:', error);
+        setProgreso({ fase: 'error', porcentaje: 0, mensaje: 'Error interno del procesador' });
+        toast({ variant: 'destructive', title: 'Error', description: 'Error interno del procesador' });
+      };
+
+      // Enviar archivo al worker
+      worker.postMessage({
+        tipo: 'PROCESAR_MANIFIESTO',
+        payload: {
+          archivo: arrayBuffer,
+          operador: 'Usuario'
+        }
+      });
+
     } catch (error) {
-      setProgreso({ fase: 'error', porcentaje: 0, mensaje: 'Error en el procesamiento' });
-      toast({ variant: 'destructive', title: 'Error', description: 'Hubo un problema procesando los documentos' });
+      console.error('Error iniciando procesamiento:', error);
+      setProgreso({ fase: 'error', porcentaje: 0, mensaje: 'Error al iniciar procesamiento' });
+      toast({ variant: 'destructive', title: 'Error', description: 'Error al iniciar el procesamiento' });
     }
   }, [archivos]);
 
@@ -596,25 +698,42 @@ export function FlujoCargaUnificado() {
           </Card>
         )}
 
-        {/* Paquetes sin factura */}
-        {sinFactura.length > 0 && (
+        {/* Paquetes sin factura - Mensaje informativo positivo */}
+        {sinFactura.length > 0 && sinFactura.length === datosExtraidos.totalPaquetes && (
+          <Alert className="border-blue-200 bg-blue-50 dark:bg-blue-950">
+            <CheckCircle2 className="h-4 w-4 text-blue-600" />
+            <AlertTitle className="text-blue-700">Procesamiento Exitoso</AlertTitle>
+            <AlertDescription className="text-blue-600">
+              Se procesaron {datosExtraidos.totalPaquetes} paquetes del manifiesto con clasificación arancelaria automática.
+              Las facturas PDF son opcionales y pueden agregarse posteriormente para verificación de valores.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Solo mostrar lista de sin factura si hay algunos con y otros sin */}
+        {sinFactura.length > 0 && sinFactura.length < datosExtraidos.totalPaquetes && (
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <FileSearch className="w-5 h-5" />
-                Paquetes sin Factura Asociada
+                Paquetes sin Factura Asociada ({sinFactura.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="flex flex-wrap gap-2">
-                {sinFactura.map((v, i) => (
-                  <Badge key={i} variant="outline">
-                    {v.trackingManifiesto}
-                  </Badge>
-                ))}
-              </div>
+              <ScrollArea className="max-h-32">
+                <div className="flex flex-wrap gap-2">
+                  {sinFactura.slice(0, 20).map((v, i) => (
+                    <Badge key={i} variant="outline" className="font-mono text-xs">
+                      {v.trackingManifiesto}
+                    </Badge>
+                  ))}
+                  {sinFactura.length > 20 && (
+                    <Badge variant="secondary">+{sinFactura.length - 20} más</Badge>
+                  )}
+                </div>
+              </ScrollArea>
               <p className="text-sm text-muted-foreground mt-3">
-                Estos paquetes se procesarán con los valores del manifiesto.
+                Estos paquetes se procesaron con los valores del manifiesto.
               </p>
             </CardContent>
           </Card>
@@ -626,12 +745,21 @@ export function FlujoCargaUnificado() {
             <ChevronLeft className="w-4 h-4 mr-2" />
             Volver a Cargar
           </Button>
-          <Button size="lg" onClick={() => {
-            toast({ title: 'Procesamiento confirmado', description: 'Redirigiendo al dashboard...' });
-            // navigate(`/dashboard/${datosExtraidos.mawb}`);
-          }}>
-            Confirmar y Continuar
-            <ChevronRight className="w-5 h-5 ml-2" />
+          <Button 
+            size="lg" 
+            onClick={() => {
+              if (manifiestoIdGuardado) {
+                toast({ title: '✅ Procesamiento confirmado', description: 'Redirigiendo al dashboard...' });
+                navigate(`/dashboard/${manifiestoIdGuardado}`);
+              } else {
+                toast({ variant: 'destructive', title: 'Error', description: 'No se encontró el ID del manifiesto' });
+              }
+            }}
+            className="gap-2"
+          >
+            <Play className="w-4 h-4" />
+            Ver Dashboard de Liquidación
+            <ChevronRight className="w-5 h-5" />
           </Button>
         </div>
       </div>
