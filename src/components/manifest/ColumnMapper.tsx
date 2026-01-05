@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
-import { ArrowRight, CheckCircle2 } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { ArrowRight, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { ColumnMapping } from '@/types/manifest';
 import { detectarColumnasAutomaticamente } from '@/lib/deteccion/detectorColumnasMejorado';
 import { Button } from '@/components/ui/button';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Select,
   SelectContent,
@@ -10,6 +11,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { PROVINCIAS_PANAMA } from '@/lib/panamaGeography';
+import { getCorregimientosPorProvincia } from '@/lib/panamaGeography/corregimientos';
 
 interface ColumnMapperProps {
   headers: string[];
@@ -31,16 +34,33 @@ const REQUIRED_FIELDS = [
   { key: 'address', label: 'Dirección', suggestions: ['address', 'direccion', 'street', 'calle', 'domicilio'], required: true },
 ];
 
+// Campos geográficos - Provincia y Corregimiento ahora son OBLIGATORIOS
+const GEOGRAPHIC_FIELDS = [
+  { 
+    key: 'province', 
+    label: 'Provincia', 
+    suggestions: ['province', 'provincia', 'state', 'estado', 'departamento'],
+    required: true,
+    description: 'Obligatorio para rutas de entrega'
+  },
+  { 
+    key: 'district', 
+    label: 'Barrio/Corregimiento', 
+    suggestions: ['barrio', 'corregimiento', 'neighborhood', 'sector', 'zona', 'district'],
+    required: true,
+    description: 'Debe corresponder a la provincia'
+  },
+];
+
 const OPTIONAL_FIELDS = [
-  { key: 'province', label: 'Provincia', suggestions: ['province', 'provincia', 'state', 'estado', 'departamento'] },
-  { key: 'city', label: 'Ciudad', suggestions: ['city', 'ciudad', 'district', 'distrito', 'municipio'] },
-  { key: 'district', label: 'Barrio/Corregimiento', suggestions: ['barrio', 'corregimiento', 'neighborhood', 'sector', 'zona'] },
+  { key: 'city', label: 'Ciudad/Distrito', suggestions: ['city', 'ciudad', 'district', 'distrito', 'municipio'] },
   { key: 'phone', label: 'Teléfono', suggestions: ['phone', 'telefono', 'tel', 'celular', 'mobile', 'contacto'] },
   { key: 'identification', label: 'Identificación', suggestions: ['identification', 'id', 'cedula', 'pasaporte', 'dni', 'ruc'] },
 ];
 
 export function ColumnMapper({ headers, onMapping }: ColumnMapperProps) {
   const [mapping, setMapping] = useState<Partial<ColumnMapping>>({});
+  const [provinciasEnDatos, setProvinciasEnDatos] = useState<string[]>([]);
 
   // Auto-detect columns based on suggestions
   useEffect(() => {
@@ -80,7 +100,23 @@ export function ColumnMapper({ headers, onMapping }: ColumnMapperProps) {
     setMapping(prev => ({ ...prev, [key]: value }));
   };
 
-  const isComplete = REQUIRED_FIELDS.every(field => mapping[field.key as keyof ColumnMapping]);
+  // Validación: todos los campos requeridos + geográficos obligatorios
+  const allRequiredFields = [...REQUIRED_FIELDS, ...GEOGRAPHIC_FIELDS];
+  const isComplete = allRequiredFields.every(field => mapping[field.key as keyof ColumnMapping]);
+
+  // Obtener corregimientos disponibles basados en la provincia mapeada
+  const corregimientosDisponibles = useMemo(() => {
+    const provinciaColumn = mapping.province;
+    if (!provinciaColumn) return [];
+    
+    // Aquí podríamos analizar los datos para determinar qué provincias hay
+    // Por ahora retornamos todos los corregimientos de todas las provincias
+    const todosCorregimientos = new Set<string>();
+    PROVINCIAS_PANAMA.forEach(p => {
+      getCorregimientosPorProvincia(p.nombre).forEach(c => todosCorregimientos.add(c));
+    });
+    return Array.from(todosCorregimientos).sort();
+  }, [mapping.province]);
 
   const handleContinue = () => {
     if (isComplete) {
@@ -125,7 +161,7 @@ export function ColumnMapper({ headers, onMapping }: ColumnMapperProps) {
               <label className="text-sm font-medium text-foreground flex items-center gap-2">
                 {field.label}
                 {mapping[field.key as keyof ColumnMapping] && (
-                  <CheckCircle2 className="w-4 h-4 text-success" />
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
                 )}
               </label>
               {'description' in field && field.description && (
@@ -151,19 +187,66 @@ export function ColumnMapper({ headers, onMapping }: ColumnMapperProps) {
         </div>
       </div>
 
+      {/* Geographic Fields - NOW REQUIRED */}
+      <div className="mb-6">
+        <h4 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-destructive"></span>
+          Campos Geográficos (Obligatorios)
+          <AlertTriangle className="w-4 h-4 text-amber-500 ml-2" />
+        </h4>
+        <Alert className="mb-4 border-amber-500/50 bg-amber-50 dark:bg-amber-950">
+          <AlertTriangle className="h-4 w-4 text-amber-600" />
+          <AlertDescription className="text-amber-700 dark:text-amber-400 text-xs">
+            Provincia y Barrio/Corregimiento son <strong>obligatorios</strong> para el procesamiento correcto de rutas de entrega.
+            El sistema validará que los corregimientos correspondan a las provincias indicadas.
+          </AlertDescription>
+        </Alert>
+        <div className="grid gap-4 md:grid-cols-2">
+          {GEOGRAPHIC_FIELDS.map(field => (
+            <div key={field.key} className="space-y-2">
+              <label className="text-sm font-medium text-foreground flex items-center gap-2">
+                {field.label}
+                <span className="text-destructive">*</span>
+                {mapping[field.key as keyof ColumnMapping] && (
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
+                )}
+              </label>
+              {'description' in field && field.description && (
+                <p className="text-xs text-muted-foreground -mt-1">{field.description}</p>
+              )}
+              <Select
+                value={mapping[field.key as keyof ColumnMapping] || ''}
+                onValueChange={(value) => handleChange(field.key as keyof ColumnMapping, value)}
+              >
+                <SelectTrigger className={`w-full ${!mapping[field.key as keyof ColumnMapping] ? 'border-amber-500' : ''}`}>
+                  <SelectValue placeholder="Seleccionar columna (obligatorio)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {headers.map(header => (
+                    <SelectItem key={header} value={header}>
+                      {header}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ))}
+        </div>
+      </div>
+
       {/* Optional Fields */}
       <div className="mb-6">
         <h4 className="text-sm font-medium text-foreground mb-3 flex items-center gap-2">
           <span className="w-2 h-2 rounded-full bg-muted-foreground"></span>
-          Campos Opcionales (Geográficos y Consignatario)
+          Campos Opcionales
         </h4>
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+        <div className="grid gap-4 md:grid-cols-3">
           {OPTIONAL_FIELDS.map(field => (
             <div key={field.key} className="space-y-2">
               <label className="text-sm font-medium text-muted-foreground flex items-center gap-2">
                 {field.label}
                 {mapping[field.key as keyof ColumnMapping] && (
-                  <CheckCircle2 className="w-4 h-4 text-success" />
+                  <CheckCircle2 className="w-4 h-4 text-green-500" />
                 )}
               </label>
               <Select
@@ -186,6 +269,16 @@ export function ColumnMapper({ headers, onMapping }: ColumnMapperProps) {
           ))}
         </div>
       </div>
+
+      {/* Validation message */}
+      {!isComplete && (
+        <Alert className="mb-4 border-destructive/50">
+          <AlertTriangle className="h-4 w-4 text-destructive" />
+          <AlertDescription className="text-destructive text-sm">
+            Debes mapear todos los campos obligatorios incluyendo <strong>Provincia</strong> y <strong>Barrio/Corregimiento</strong> para continuar.
+          </AlertDescription>
+        </Alert>
+      )}
 
       <div className="mt-6 flex justify-end">
         <Button

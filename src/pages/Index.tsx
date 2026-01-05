@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Search } from 'lucide-react';
+import { Search, Sparkles } from 'lucide-react';
 import { Header } from '@/components/manifest/Header';
 import { FileUpload, MAWBInfo } from '@/components/manifest/FileUpload';
 import { ColumnMapper } from '@/components/manifest/ColumnMapper';
@@ -9,7 +9,10 @@ import { ProcessingProgress } from '@/components/manifest/ProcessingProgress';
 import { VisualDashboard } from '@/components/manifest/VisualDashboard';
 import { ConfigPanel } from '@/components/manifest/ConfigPanel';
 import { ValidacionGuiasAlert, InfoGuiasVsMAWB } from '@/components/manifest/ValidacionGuiasAlert';
+import { FlujoCargaUnificado } from '@/components/manifest/FlujoCargaUnificado';
 import { SelectorModoTransporte, useTransportMode } from '@/components/transporte/SelectorModoTransporte';
+import { Button } from '@/components/ui/button';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
   parseExcelFile, 
   mapDataToManifest, 
@@ -42,6 +45,7 @@ export default function Index() {
   const [isLoading, setIsLoading] = useState(false);
   const [mawbInfo, setMawbInfo] = useState<MAWBInfo | null>(null);
   const [fileLoaded, setFileLoaded] = useState(false);
+  const [flujoUnificado, setFlujoUnificado] = useState(true); // Nuevo flujo por defecto
   
   // Hook para modo de transporte
   const { modo: modoTransporte, zona: zonaAduanera, setModo, setZona } = useTransportMode();
@@ -163,39 +167,102 @@ export default function Index() {
       <Header />
       
       <main className="container mx-auto px-4 py-8 max-w-6xl">
-        {/* Step Indicator */}
-        <div className="mb-8">
-          <div className="flex items-center justify-center gap-2 text-sm">
-            {[
-              { key: 'upload', label: '1. Cargar' },
-              { key: 'mapping', label: '2. Mapear' },
-              { key: 'preview', label: '3. Revisar' },
-              { key: 'processing', label: '4. Procesar' },
-              { key: 'results', label: '5. Resultados' },
-            ].map((s, index) => (
-              <div key={s.key} className="flex items-center">
-                <div className={`
-                  px-3 py-1.5 rounded-full font-medium transition-all duration-300
-                  ${step === s.key 
-                    ? 'bg-primary text-primary-foreground' 
-                    : ['upload', 'mapping', 'preview', 'processing', 'results'].indexOf(step) > index
-                      ? 'bg-success text-success-foreground'
-                      : 'bg-muted text-muted-foreground'
-                  }
-                `}>
-                  {s.label}
-                </div>
-                {index < 4 && (
-                  <div className={`w-8 h-0.5 mx-1 transition-colors duration-300 ${
-                    ['upload', 'mapping', 'preview', 'processing', 'results'].indexOf(step) > index
-                      ? 'bg-success'
-                      : 'bg-muted'
-                  }`} />
-                )}
-              </div>
-            ))}
+        {/* Selector de flujo */}
+        {step === 'upload' && (
+          <div className="mb-6 flex justify-center">
+            <Tabs value={flujoUnificado ? 'unificado' : 'clasico'} onValueChange={(v) => setFlujoUnificado(v === 'unificado')}>
+              <TabsList className="grid w-full max-w-md grid-cols-2">
+                <TabsTrigger value="unificado" className="gap-2">
+                  <Sparkles className="w-4 h-4" />
+                  Flujo Unificado (Nuevo)
+                </TabsTrigger>
+                <TabsTrigger value="clasico">
+                  Flujo Clásico
+                </TabsTrigger>
+              </TabsList>
+            </Tabs>
           </div>
-        </div>
+        )}
+
+        {/* Flujo Unificado - Nuevo */}
+        {step === 'upload' && flujoUnificado && (
+          <FlujoCargaUnificado />
+        )}
+
+        {/* Flujo Clásico - Original */}
+        {step === 'upload' && !flujoUnificado && (
+          <>
+            {/* Step Indicator */}
+            <div className="mb-8">
+              <div className="flex items-center justify-center gap-2 text-sm">
+                {[
+                  { key: 'upload', label: '1. Cargar' },
+                  { key: 'mapping', label: '2. Mapear' },
+                  { key: 'preview', label: '3. Revisar' },
+                  { key: 'processing', label: '4. Procesar' },
+                  { key: 'results', label: '5. Resultados' },
+                ].map((s, index) => (
+                  <div key={s.key} className="flex items-center">
+                    <div className={`
+                      px-3 py-1.5 rounded-full font-medium transition-all duration-300
+                      ${step === s.key 
+                        ? 'bg-primary text-primary-foreground' 
+                        : ['upload', 'mapping', 'preview', 'processing', 'results'].indexOf(step) > index
+                          ? 'bg-green-500 text-white'
+                          : 'bg-muted text-muted-foreground'
+                      }
+                    `}>
+                      {s.label}
+                    </div>
+                    {index < 4 && (
+                      <div className={`w-8 h-0.5 mx-1 transition-colors duration-300 ${
+                        ['upload', 'mapping', 'preview', 'processing', 'results'].indexOf(step) > index
+                          ? 'bg-green-500'
+                          : 'bg-muted'
+                      }`} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* Legacy step indicator for non-upload steps */}
+        {step !== 'upload' && (
+          <div className="mb-8">
+            <div className="flex items-center justify-center gap-2 text-sm">
+              {[
+                { key: 'upload', label: '1. Cargar' },
+                { key: 'mapping', label: '2. Mapear' },
+                { key: 'preview', label: '3. Revisar' },
+                { key: 'processing', label: '4. Procesar' },
+                { key: 'results', label: '5. Resultados' },
+              ].map((s, index) => (
+                <div key={s.key} className="flex items-center">
+                  <div className={`
+                    px-3 py-1.5 rounded-full font-medium transition-all duration-300
+                    ${step === s.key 
+                      ? 'bg-primary text-primary-foreground' 
+                      : ['upload', 'mapping', 'preview', 'processing', 'results'].indexOf(step) > index
+                        ? 'bg-green-500 text-white'
+                        : 'bg-muted text-muted-foreground'
+                    }
+                  `}>
+                    {s.label}
+                  </div>
+                  {index < 4 && (
+                    <div className={`w-8 h-0.5 mx-1 transition-colors duration-300 ${
+                      ['upload', 'mapping', 'preview', 'processing', 'results'].indexOf(step) > index
+                        ? 'bg-green-500'
+                        : 'bg-muted'
+                    }`} />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* MAWB Display when not on upload step */}
         {mawbInfo?.isValid && step !== 'upload' && (
@@ -214,8 +281,8 @@ export default function Index() {
           </div>
         )}
 
-        {/* Config Panel - Show on upload and preview steps */}
-        {(step === 'upload' || step === 'preview') && (
+        {/* Config Panel - Show on upload (classic mode) and preview steps */}
+        {((step === 'upload' && !flujoUnificado) || step === 'preview') && (
           <div className="mb-6">
             <ConfigPanel config={config} onConfigChange={setConfig} />
           </div>
@@ -223,7 +290,7 @@ export default function Index() {
 
         {/* Main Content */}
         <div className="space-y-6">
-          {step === 'upload' && (
+          {step === 'upload' && !flujoUnificado && (
             <div className="max-w-2xl mx-auto space-y-6">
               <div className="text-center mb-8">
                 <h2 className="text-2xl font-bold text-foreground mb-2">
