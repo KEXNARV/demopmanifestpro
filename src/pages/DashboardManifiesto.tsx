@@ -846,11 +846,13 @@ export default function DashboardManifiesto() {
                                 <Cell key={`cell-prov-${index}`} fill={entry.color} />
                               ))}
                             </Pie>
-                            <Tooltip 
-                              formatter={(value, name, props) => [
-                                `${value} paquetes - $${props.payload.totalValue.toFixed(2)}`,
-                                props.payload.name
-                              ]}
+                            <Tooltip
+                              formatter={(value: any, _name: any, props: any) => {
+                                const payload = props?.payload ?? {};
+                                const totalValue = typeof payload.totalValue === 'number' ? payload.totalValue : 0;
+                                const label = payload.name ?? 'Provincia';
+                                return [`${value} paquetes - $${totalValue.toFixed(2)}`, label];
+                              }}
                             />
                             <Legend />
                           </PieChart>
@@ -886,11 +888,13 @@ export default function DashboardManifiesto() {
                               tick={{ fontSize: 11 }}
                               width={75}
                             />
-                            <Tooltip 
-                              formatter={(value, name, props) => [
-                                `${value} paquetes - $${props.payload.totalValue.toFixed(2)}`,
-                                props.payload.province || 'Ciudad'
-                              ]}
+                            <Tooltip
+                              formatter={(value: any, _name: any, props: any) => {
+                                const payload = props?.payload ?? {};
+                                const totalValue = typeof payload.totalValue === 'number' ? payload.totalValue : 0;
+                                const province = payload.province || 'Ciudad';
+                                return [`${value} paquetes - $${totalValue.toFixed(2)}`, province];
+                              }}
                             />
                             <Bar dataKey="value" fill="hsl(217, 91%, 60%)" radius={[0, 4, 4, 0]} />
                           </BarChart>
@@ -928,12 +932,14 @@ export default function DashboardManifiesto() {
                             height={80}
                           />
                           <YAxis />
-                          <Tooltip 
-                            formatter={(value, name, props) => [
-                              `${value} paquetes - $${props.payload.totalValue.toFixed(2)}`,
-                              props.payload.city || 'Barrio'
-                            ]}
-                          />
+                           <Tooltip
+                             formatter={(value: any, _name: any, props: any) => {
+                               const payload = props?.payload ?? {};
+                               const totalValue = typeof payload.totalValue === 'number' ? payload.totalValue : 0;
+                               const city = payload.city || 'Barrio';
+                               return [`${value} paquetes - $${totalValue.toFixed(2)}`, city];
+                             }}
+                           />
                           <Bar dataKey="value" fill="hsl(262, 83%, 58%)" radius={[4, 4, 0, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
